@@ -4,41 +4,49 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="robots" content="noindex">
+<meta name="theme-color" content="#1a0b2e">
 <link rel="icon" href="data:,">
 <title>时烽德州 · 庄家后台</title>
 <style>
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-html,body{margin:0;background:#0a2016;color:#f3f3ef;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Helvetica Neue",sans-serif}
-body{padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom)}
-button{font:inherit;border:0;border-radius:10px;padding:9px 12px;font-weight:600;color:#fff;background:#2e5f46;cursor:pointer}
+/* 皇家紫晶主题 */
+html{background:#1a0b2e}
+html,body{margin:0;color:#f6f0ff;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Helvetica Neue",sans-serif}
+body{padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom);min-height:100vh;background:transparent}
+body:before{content:"";position:fixed;inset:0;z-index:-1;background:radial-gradient(120% 60% at 50% 0%,#5b2a8688 0%,transparent 60%),linear-gradient(165deg,#1a0b2e 0%,#3b1466 55%,#5b2a86 100%)}
+button{font:inherit;border:1px solid #d4af3733;border-radius:10px;padding:9px 12px;font-weight:600;color:#fff;background:linear-gradient(180deg,#56298a,#43206f);cursor:pointer}
 button:disabled{opacity:.35}
-button.pri{background:#e0a82e;color:#2a1c00}button.red{background:#a8322d}button.ghost{background:transparent;border:1px solid #ffffff44}
+button.pri{background:linear-gradient(180deg,#f5d77a 0%,#d4af37 100%);color:#2a1600;border:1px solid #f9e6a6;box-shadow:0 2px 10px #d4af3740}
+button.red{background:linear-gradient(180deg,#b3384a,#8e2235);border-color:#ff9aa833}
+button.ghost{background:transparent;border:1px solid #d4af3799;color:#f5d77a}
 button.sm{padding:5px 10px;font-size:13px}
-input{font:inherit;font-size:16px;padding:9px 10px;border-radius:10px;border:1px solid #ffffff33;background:#0f3323;color:#fff;width:100%}
-label{font-size:13px;opacity:.8;display:block;margin:8px 0 4px}
+input{font:inherit;font-size:16px;padding:9px 10px;border-radius:10px;border:1px solid #d4af3755;background:#1d0c35;color:#fff;width:100%}
+input:focus{outline:none;border-color:#f5d77a;box-shadow:0 0 0 2px #d4af3733}
+input::placeholder{color:#b9a6d6}
+label{font-size:13px;color:#d9c9f2;display:block;margin:8px 0 4px}
 .wrap{max-width:720px;margin:0 auto;padding:12px}
-h1{font-size:22px;margin:10px 0 2px}h2{font-size:16px;margin:0 0 8px}
-.muted{opacity:.7;font-size:13px}
-.box{background:#103a27;border:1px solid #ffffff1f;border-radius:14px;padding:14px;margin:12px 0}
+h1{font-size:22px;margin:10px 0 2px;color:#f5d77a;text-shadow:0 1px 12px #d4af3755;letter-spacing:1px}h2{font-size:16px;margin:0 0 8px;color:#f8eec8}
+.muted{color:#cdbbe8;font-size:13px}
+.box{background:linear-gradient(180deg,#2e1352e6,#220d40e6);border:1px solid #d4af3755;border-radius:16px;padding:14px;margin:12px 0;box-shadow:0 6px 20px #0006,inset 0 1px 0 #f5d77a1f}
 .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 .hidden{display:none!important}
-.tabs{display:flex;gap:4px;background:#0f3323;border:1px solid #ffffff33;border-radius:12px;padding:3px;position:sticky;top:0;z-index:5}
-.tabs button{flex:1;background:transparent;color:#ffffffaa;padding:9px 4px}
-.tabs button.on{background:#2e5f46;color:#fff}
+.tabs{display:flex;gap:4px;background:#1d0c35f2;border:1px solid #d4af3766;border-radius:12px;padding:3px;position:sticky;top:0;z-index:5}
+.tabs button{flex:1;background:transparent;border:0;color:#cdbbe8;padding:9px 4px}
+.tabs button.on{background:linear-gradient(180deg,#6b35a0,#4f2380);color:#fff8e1;box-shadow:inset 0 0 0 1px #d4af37aa}
 .stats{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
 @media(min-width:560px){.stats{grid-template-columns:repeat(4,1fr)}}
-.stat{background:#0d2a1c;border-radius:12px;padding:10px}
-.stat .v{font-size:22px;font-weight:800;color:#ffe9a8}.stat .l{font-size:12px;opacity:.7}
-.item{border-top:1px solid #ffffff14;padding:10px 0}
+.stat{background:#1a0b2ecc;border:1px solid #d4af3733;border-radius:12px;padding:10px}
+.stat .v{font-size:22px;font-weight:800;color:#f5d77a}.stat .l{font-size:12px;color:#cdbbe8}
+.item{border-top:1px solid #d4af3726;padding:10px 0}
 .item:first-child{border-top:0}
 .name{font-weight:700;font-size:15px}
 .tag{font-size:11px;padding:2px 7px;border-radius:999px;background:#ffffff22;margin-left:4px;vertical-align:1px}
-.tag.on{background:#2e7d4f}.tag.ban{background:#a8322d}.tag.adm{background:#9a6b12}
-.money{color:#ffe9a8;font-weight:700}
-.pos{color:#7dff9b}.neg{color:#ff8a80}
-.ledger{font-size:12px;line-height:1.6;background:#0d2a1c;border-radius:8px;padding:8px;margin-top:8px;max-height:220px;overflow:auto}
-.warn{background:#5a3c0b;border-radius:10px;padding:8px 10px;font-size:13px;margin-top:8px}
-#toast{position:fixed;left:50%;top:14px;transform:translateX(-50%);background:#000c;padding:8px 14px;border-radius:10px;z-index:99;font-size:14px}
+.tag.on{background:#2f7a59}.tag.ban{background:#a8322d}.tag.adm{background:#a07a12}
+.money{color:#f5d77a;font-weight:700}
+.pos{color:#8dffb0}.neg{color:#ff9a90}
+.ledger{font-size:12px;line-height:1.6;background:#1a0b2ecc;border:1px solid #d4af3733;border-radius:8px;padding:8px;margin-top:8px;max-height:220px;overflow:auto}
+.warn{background:#4b1f63;border:1px solid #d4af3788;border-radius:10px;padding:8px 10px;font-size:13px;margin-top:8px}
+#toast{position:fixed;left:50%;top:14px;transform:translateX(-50%);background:#1a0b2ef2;border:1px solid #d4af37aa;color:#fff;padding:8px 14px;border-radius:10px;z-index:99;font-size:14px;box-shadow:0 6px 18px #000a}
 .presets button{flex:1 1 auto}
 .mem{display:flex;justify-content:space-between;align-items:center;font-size:13px;padding:4px 0}
 </style>
@@ -192,7 +200,7 @@ async function ban(id, banned) {
 async function loadRooms() {
   const list = await call("GET", "/api/admin/rooms");
   $("rooms").innerHTML = list.length ? list.map((r) => `<div class="item">
-    <div class="row" style="justify-content:space-between"><div><span class="name" style="color:#e0a82e;letter-spacing:1px">${esc(r.code)}</span><span class="tag">${r.public ? "公开" : "私密"}</span><span class="tag ${r.status === "等待中" ? "" : "on"}">${esc(r.status)}</span></div>
+    <div class="row" style="justify-content:space-between"><div><span class="name" style="color:#f5d77a;letter-spacing:1px">${esc(r.code)}</span><span class="tag">${r.public ? "公开" : "私密"}</span><span class="tag ${r.status === "等待中" ? "" : "on"}">${esc(r.status)}</span></div>
       <button class="red sm" onclick="closeRoom('${esc(r.code)}')">关闭房间</button></div>
     <div class="muted">房主 ${esc(r.host)} · 在线 ${r.online} 人 · 盲注 ${r.cfg.sb}/${r.cfg.bb} · 带入 ${fmt(r.cfg.start)}${r.handNo ? ` · 第 ${r.handNo} 手` : ""}</div>
     ${r.members.map((m) => `<div class="mem"><span>${esc(m.name)}${m.bot ? '<span class="tag">电脑</span>' : ""}${!m.connected ? '<span class="tag">离线</span>' : ""} <span class="money">${fmt(m.chips)}</span></span>${m.bot ? "" : `<button class="ghost sm" onclick="kick('${esc(r.code)}', ${m.userId}, '${esc(m.name)}')">踢出</button>`}</div>`).join("")}
