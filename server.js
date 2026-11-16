@@ -9,6 +9,7 @@ import { fileURLToPath } from "node:url";
 import bcrypt from "bcryptjs";
 import * as E from "./engine.js";
 import { openStore } from "./db.js";
+import * as Slot from "./slot.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const MAX_SEATS = 9;
@@ -123,6 +124,34 @@ export async function createApp(opts = {}) {
   app.get("/api/me/ledger", auth, async (req, res, next) => { try { res.json(await store.ledger(req.user.id, 30)); } catch (e) { next(e); } });
   app.get("/health", (_req, res) => res.json({ ok: true, rooms: rooms.size, storage: store.kind }));
   app.get("/api/rooms", (_req, res) => res.json(listRooms()));
+
+  // ---------- 时烽麻将消消乐（单人转轴，结果全部在服务器计算） ----------
+  const MJ = "mahjong"; const MJ_NAME = "时烽麻将消消乐";
+  const slotRng = opts.slotRng ?? Slot.cryptoRng();
+  const spinning = new Set(); // 同一个玩家同时只能有一次转动在结算
+  app.get("/api/mahjong/config", (_req, res) => res.json({
+    name: MJ_NAME, bets: Slot.BETS, reels: Slot.REELS, rows: Slot.ROWS, paytable: Slot.PAYTABLE, symbols: Slot.SYMBOLS,
+    baseMults: Slot.BASE_MULTS, freeMults: Slot.FREE_MULTS, maxWinX: Slot.MAX_WIN_X,
+  }));
+  app.post("/api/mahjong/spin", auth, async (req, res, next) => {
+    const uid = req.user.id; const bet = Math.trunc(Number(req.body?.bet));
+    if (!Slot.BETS.includes(bet)) return res.status(400).json({ error: "请选择有效的下注额" });
+    if (spinning.has(uid)) return res.status(429).json({ error: "上一局还在结算，请稍等" });
+    spinning.add(uid);
+    try {
+      if (req.user.balance < bet) return res.status(400).json({ error: NO_CHIPS_MSG, code: "NO_CHIPS" });
+      const r = Slot.spin(bet, slotRng);
+      const label = `${MJ_NAME} 下注 ${bet}` + (r.win ? ` 赢 ${r.win}` : "") + (r.freeAwarded ? `（免费游戏 ${r.freeAwarded} 次）` : "");
+      let saved;
+      try { saved = await store.slotSpin(uid, houseId, MJ, bet, r.win, r.freeAwarded, label); }
+      catch (e) { if (e.message === "INSUFFICIENT") return res.status(400).json({ error: NO_CHIPS_MSG, code: "NO_CHIPS" }); throw e; }
+      pushMe(uid);
+      res.json({ ...r, id: saved.id, balance: saved.balance });
+    } catch (e) { next(e); } finally { spinning.delete(uid); }
+  });
+  app.get("/api/mahjong/history", auth, async (req, res, next) => {
+    try { res.json({ history: await store.slotHistory(req.user.id, MJ, 20), totals: await store.slotTotals(MJ, req.user.id) }); } catch (e) { next(e); }
+  });
 
   async function pushMe(userId) {
     const set = userSockets.get(userId); if (!set || !set.size) return;
@@ -526,6 +555,10 @@ export async function createApp(opts = {}) {
     const sid = m.socketId; leave(r, m.token, "被庄家移出，返还");
     if (sid) { const s = io.sockets.sockets.get(sid); if (s) { s.emit("kicked", "你被庄家移出了房间，筹码已返还到余额"); s.leave(r.code); s.data.code = null; } }
     res.json({ ok: true });
+  });
+  aget("/mahjong", async (_req, res) => {
+    const t = await store.slotTotals(MJ);
+    res.json({ name: MJ_NAME, totals: { ...t, profit: t.bets - t.wins, rtp: t.bets ? t.wins / t.bets : null }, recent: await store.slotHistory(null, MJ, 30), top: await store.slotTopPlayers(MJ, 10) });
   });
   apost("/settings", async (req, res) => {
     const b = req.body || {};

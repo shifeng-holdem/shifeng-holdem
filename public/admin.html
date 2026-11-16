@@ -66,7 +66,7 @@ h1{font-size:22px;margin:10px 0 2px;color:#f5d77a;text-shadow:0 1px 12px #d4af37
 
   <div id="main" class="hidden">
     <div class="row" style="justify-content:space-between;margin:10px 0"><span class="muted">管理员 <b id="who"></b></span><button class="ghost sm" id="btnOut">退出</button></div>
-    <div class="tabs" id="tabs"><button data-t="ov" class="on">概览</button><button data-t="users">玩家</button><button data-t="rooms">房间</button><button data-t="set">设置</button></div>
+    <div class="tabs" id="tabs"><button data-t="ov" class="on">概览</button><button data-t="users">玩家</button><button data-t="rooms">房间</button><button data-t="mj">麻将</button><button data-t="set">设置</button></div>
 
     <div id="t-ov">
       <div class="box"><div class="stats" id="stats"></div><div id="storeWarn"></div></div>
@@ -81,6 +81,14 @@ h1{font-size:22px;margin:10px 0 2px;color:#f5d77a;text-shadow:0 1px 12px #d4af37
 
     <div id="t-rooms" class="hidden">
       <div class="box"><div class="row" style="justify-content:space-between"><h2 style="margin:0">全部房间</h2><button class="ghost sm" onclick="loadRooms()">刷新</button></div><div id="rooms"></div></div>
+    </div>
+
+    <div id="t-mj" class="hidden">
+      <div class="box"><div class="row" style="justify-content:space-between"><h2 style="margin:0">时烽麻将消消乐 · 汇总</h2><button class="ghost sm" onclick="loadMj()">刷新</button></div>
+        <div class="stats" id="mjStats" style="margin-top:8px"></div>
+        <div class="muted" style="margin-top:8px">庄家盈亏 = 玩家下注 − 派彩，已计入庄家余额。设计返还率约 96%，局数越多实际返还率越接近。</div></div>
+      <div class="box"><h2>下注最多的玩家</h2><div id="mjTop"></div></div>
+      <div class="box"><h2>最近 30 局</h2><div id="mjRecent" class="ledger" style="max-height:none"></div></div>
     </div>
 
     <div id="t-set" class="hidden">
@@ -123,21 +131,21 @@ $("tabs").querySelectorAll("button").forEach((b) => b.onclick = () => setTab(b.d
 function setTab(t) {
   tab = t;
   $("tabs").querySelectorAll("button").forEach((x) => x.classList.toggle("on", x.dataset.t === t));
-  for (const x of ["ov", "users", "rooms", "set"]) $("t-" + x).classList.toggle("hidden", x !== t);
-  if (t === "ov") loadStats(); if (t === "users") loadUsers(); if (t === "rooms") loadRooms(); if (t === "set") loadStats();
+  for (const x of ["ov", "users", "rooms", "mj", "set"]) $("t-" + x).classList.toggle("hidden", x !== t);
+  if (t === "ov") loadStats(); if (t === "users") loadUsers(); if (t === "rooms") loadRooms(); if (t === "mj") loadMj(); if (t === "set") loadStats();
 }
 async function start(name) {
   $("loginBox").classList.add("hidden"); $("main").classList.remove("hidden");
   if (name) $("who").textContent = name;
   setTab(tab);
-  clearInterval(timer); timer = setInterval(() => { if (tab === "ov") loadStats(); if (tab === "rooms") loadRooms(); }, 10000);
+  clearInterval(timer); timer = setInterval(() => { if (tab === "ov") loadStats(); if (tab === "rooms") loadRooms(); if (tab === "mj") loadMj(); }, 10000);
 }
 
 async function loadStats() {
   const s = await call("GET", "/api/admin/stats");
   const items = [["在线玩家", s.online], ["房间", s.rooms], ["在座真人", s.seated], ["电脑玩家", s.bots], ["注册玩家", s.users], ["庄家余额", fmt(s.house)], ["桌上筹码", fmt(s.tableChips)], ["抽水比例", s.settings.rakePercent + "%"]];
   $("stats").innerHTML = items.map(([l, v]) => `<div class="stat"><div class="v">${v}</div><div class="l">${l}</div></div>`).join("");
-  const houseNote = `<div class="muted" style="margin-top:8px">庄家余额 = 抽水收入 − 电脑玩家带入的筹码（电脑玩家离桌时返还），为负数是正常的。</div>`;
+  const houseNote = `<div class="muted" style="margin-top:8px">庄家余额 = 抽水收入 + 麻将消消乐盈亏 − 电脑玩家带入的筹码（电脑玩家离桌时返还），为负数是正常的。</div>`;
   $("storeWarn").innerHTML = houseNote + (s.storage === "postgres" ? `<div class="muted" style="margin-top:8px">数据存储：Postgres 数据库</div>` : `<div class="warn">⚠️ 当前没有连接数据库（存储：${esc(s.storage)}），服务器重启或重新部署后账号和余额会丢失。请在 Render 设置 DATABASE_URL。</div>`);
   $("sRake").value = s.settings.rakePercent;
 }
@@ -195,6 +203,16 @@ async function ban(id, banned) {
   const u = usersCache.find((x) => x.id === id);
   if (!confirm(banned ? `封禁 ${u.username}？会把他请出房间（桌上筹码返还余额）并让他下线。` : `解封 ${u.username}？`)) return;
   try { await call("POST", `/api/admin/users/${id}/ban`, { banned }); toast(banned ? "已封禁" : "已解封"); loadUsers(); } catch (e) { toast(e.message); }
+}
+
+async function loadMj() {
+  const d = await call("GET", "/api/admin/mahjong"); const t = d.totals;
+  const pc = (v) => v == null ? "—" : (v * 100).toFixed(1) + "%";
+  const items = [["总局数", fmt(t.spins)], ["参与玩家", fmt(t.players)], ["玩家总下注", fmt(t.bets)], ["总派彩", fmt(t.wins)],
+    ["庄家盈亏", `<span class="${t.profit >= 0 ? "pos" : "neg"}">${t.profit >= 0 ? "+" : ""}${fmt(t.profit)}</span>`], ["实际返还率", pc(t.rtp)], ["触发免费游戏", fmt(t.features) + " 次"], ["单局最高派彩", fmt(t.best)]];
+  $("mjStats").innerHTML = items.map(([l, v]) => `<div class="stat"><div class="v">${v}</div><div class="l">${l}</div></div>`).join("");
+  $("mjTop").innerHTML = d.top.length ? d.top.map((u) => { const p = u.bets - u.wins; return `<div class="mem"><span><b>${esc(u.username)}</b> <span class="muted">${fmt(u.spins)} 局</span></span><span>下注 <span class="money">${fmt(u.bets)}</span> · 派彩 ${fmt(u.wins)} · 庄家 <span class="${p >= 0 ? "pos" : "neg"}">${p >= 0 ? "+" : ""}${fmt(p)}</span></span></div>`; }).join("") : `<div class="muted">还没有人玩过</div>`;
+  $("mjRecent").innerHTML = d.recent.length ? d.recent.map((h) => `<div>${t2(h.at)} · <b>${esc(h.username)}</b> 下注 ${fmt(h.bet)} → ${h.win ? `<span class="pos">赢 ${fmt(h.win)}</span>` : `<span class="muted">未中</span>`}${h.freeSpins ? ` · 免费游戏 ${h.freeSpins} 次` : ""} · 余额 ${fmt(h.balanceAfter)}</div>`).join("") : "暂无记录";
 }
 
 async function loadRooms() {

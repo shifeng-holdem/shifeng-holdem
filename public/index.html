@@ -103,6 +103,84 @@ h1{font-size:24px;margin:14px 0 4px;color:#f5d77a;text-shadow:0 1px 12px #d4af37
 #raisebox input[type=range]{width:100%;padding:0;accent-color:#d4af37;height:30px;border:0;background:transparent;box-shadow:none}
 #status{font-size:14px;text-align:center;padding:10px}
 #log{max-width:520px;margin:6px auto 20px;padding:8px 10px;font-size:12px;line-height:1.5;max-height:150px;overflow:auto;background:#1a0b2ecc;border:1px solid #d4af3733;border-radius:10px;color:#e6dbf7}
+/* 游戏大厅 */
+.games{display:flex;flex-direction:column;gap:12px;margin-top:4px}
+.gtile{display:flex;align-items:center;gap:12px;padding:12px;border-radius:18px;cursor:pointer;background:linear-gradient(135deg,#3d1870 0%,#2a1050 60%,#3b1466 100%);border:1px solid #d4af3799;box-shadow:0 8px 22px #0007,inset 0 1px 0 #f5d77a33;position:relative;overflow:hidden}
+.gtile:before{content:"";position:absolute;inset:0;background:radial-gradient(80% 120% at 0% 0%,#f5d77a22,transparent 60%);pointer-events:none}
+.gtile:active{transform:scale(.985)}
+.gart{width:86px;height:86px;flex:none;border-radius:14px;position:relative;border:2px solid #d4af37;box-shadow:inset 0 0 18px #0008,0 0 14px #d4af3744}
+.gart.poker{background:radial-gradient(circle at 50% 40%,#a568dc,#5b2a86 70%,#3b1466)}
+.gart.poker span{position:absolute;width:38px;height:54px;background:#fdfdfb;border-radius:6px;color:#111;font-weight:800;font-size:17px;display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1;box-shadow:0 2px 6px #0009}
+.gart.poker span i{font-style:normal;font-size:20px}
+.gart.poker .c1{left:10px;top:14px;transform:rotate(-12deg)}.gart.poker .c2{left:36px;top:16px;transform:rotate(10deg);color:#d0202a}
+.gart.mj{background:radial-gradient(circle at 50% 40%,#7a2a2a,#4a1530 70%,#2a0b2e)}
+.gart.mj .mt{position:absolute;width:30px;height:42px;border-radius:6px;background:linear-gradient(180deg,#fffdf4,#efe6cf);border-bottom:4px solid #2f8f5b;font-weight:900;font-size:20px;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 5px #0009;font-family:"Kaiti SC","STKaiti","KaiTi",serif}
+.gart.mj .t1{left:6px;top:24px;color:#1c8a43;transform:rotate(-10deg)}.gart.mj .t2{left:28px;top:12px;color:#c8182c;z-index:1}.gart.mj .t3{left:50px;top:26px;transform:rotate(10deg);color:#f5d77a;background:linear-gradient(180deg,#d33a3a,#8e1325);border-bottom-color:#d4af37}
+.ginfo{flex:1;min-width:0}
+.gname{font-size:18px;font-weight:800;color:#f8e7b0;letter-spacing:1px}
+.gdesc{font-size:12px;color:#d9c9f2;margin-top:3px}
+.gmeta{font-size:12px;color:#f5d77a;margin-top:6px}
+.gbtn{flex:none;background:linear-gradient(180deg,#f5d77a,#d4af37);color:#2a1600;font-weight:800;border-radius:999px;padding:8px 14px;font-size:14px;box-shadow:0 2px 10px #d4af3755}
+.newtag{font-size:11px;background:#c8182c;color:#fff;border-radius:6px;padding:1px 5px;vertical-align:3px;margin-left:2px}
+/* 麻将消消乐 */
+#mj{max-width:520px;margin:0 auto;padding:6px 10px 16px}
+.mjtop{display:flex;align-items:center;justify-content:space-between;gap:6px}
+.mjtop button{padding:6px 12px;font-size:13px}
+.mjtitle{font-size:19px;font-weight:900;color:#f5d77a;letter-spacing:2px;text-shadow:0 0 12px #d4af3788}
+.mjboard{margin-top:8px;padding:10px 8px 8px;border-radius:18px;background:linear-gradient(180deg,#4a1a2e,#2a0f3d 40%,#24103f);border:2px solid #d4af37;box-shadow:inset 0 0 0 2px #f5d77a44,inset 0 0 30px #000a,0 10px 24px #000a;position:relative}
+.mjfree{position:absolute;left:50%;top:-14px;transform:translateX(-50%);background:linear-gradient(180deg,#e04848,#9c1528);border:1px solid #f5d77a;border-radius:999px;padding:3px 14px;font-size:13px;color:#fff3c4;white-space:nowrap;box-shadow:0 0 14px #ff4d6d88;z-index:2}
+.mults{display:flex;justify-content:center;gap:8px;margin-bottom:8px}
+.mults span{min-width:52px;text-align:center;padding:4px 0;border-radius:10px;font-weight:900;font-size:18px;color:#a993c8;background:#1a0b2ecc;border:1px solid #d4af3733;font-style:italic}
+.mults span.on{color:#2a1600;background:linear-gradient(180deg,#fff0b0,#d4af37);border-color:#fff3c4;box-shadow:0 0 16px #f5d77acc;transform:scale(1.08)}
+.mults.free span{color:#ffb3c0}
+.mults.free span.on{background:linear-gradient(180deg,#ffd0d6,#e04864);color:#3a0010}
+.reels{display:grid;grid-template-columns:repeat(5,1fr);gap:5px;padding:6px;border-radius:12px;background:linear-gradient(180deg,#160822,#24103f);box-shadow:inset 0 0 14px #000}
+.reel{display:grid;grid-template-rows:repeat(4,1fr);gap:5px;overflow:hidden}
+.tile{aspect-ratio:3/4;border-radius:8px;background:linear-gradient(180deg,#fffdf6 0%,#f3ead2 82%);border-bottom:5px solid #2f8f5b;box-shadow:0 2px 0 #1f5e3c,0 3px 6px #0008,inset 0 1px 0 #fff;display:flex;align-items:center;justify-content:center;position:relative;font-family:"Kaiti SC","STKaiti","KaiTi","Songti SC",serif;font-weight:900;user-select:none}
+.tile svg{width:78%;height:78%}
+.tile .big{font-size:clamp(22px,8vw,38px);line-height:1}
+.tile .fa{color:#178a3e}.tile .zh{color:#c8182c}
+.tile .bai{width:62%;height:70%;border:3px solid #2b5fb8;border-radius:4px;box-shadow:inset 0 0 0 3px #fff,inset 0 0 0 5px #2b5fb8}
+.tile .wan{display:flex;flex-direction:column;align-items:center;line-height:1}
+.tile .wan b{font-size:clamp(16px,5.4vw,26px);color:#111}.tile .wan i{font-style:normal;font-size:clamp(18px,6vw,30px);color:#c8182c}
+.tile.wild{background:linear-gradient(160deg,#fff5c8 0%,#f5d77a 35%,#c89b2a 70%,#fff0a8 100%);border-bottom-color:#8a6a1a;box-shadow:0 2px 0 #5a420d,0 0 12px #f5d77aaa,inset 0 1px 0 #fff}
+.tile.wild .wd{display:flex;flex-direction:column;align-items:center;color:#6a1010;font-size:clamp(15px,5vw,24px);line-height:1.05;text-shadow:0 1px 0 #fff8}
+.tile.hu{background:linear-gradient(160deg,#ff6a6a,#c8182c 55%,#7d0a1e);border-bottom-color:#d4af37;box-shadow:0 2px 0 #8a6a1a,0 0 14px #ff4d6daa}
+.tile.hu .big{color:#ffe9a8;text-shadow:0 0 8px #f5d77a,0 2px 0 #6a0010}
+.tile.win{animation:tw .45s ease-in-out infinite alternate;z-index:1}
+.tile.win:after{content:"";position:absolute;inset:0;border-radius:8px;box-shadow:inset 0 0 0 3px #f5d77a,inset 0 0 14px 3px #f5d77acc}
+.reels.showing .tile:not(.win):not(.pop){filter:brightness(.42) saturate(.6)}
+.reel{padding:3px}
+.tile.pop{animation:tp .28s ease-in forwards}
+.tile.drop{animation:td .32s cubic-bezier(.3,1.4,.5,1) both}
+@keyframes tw{from{transform:scale(1)}to{transform:scale(1.08)}}
+@keyframes tp{to{transform:scale(0) rotate(20deg);opacity:0}}
+@keyframes td{from{transform:translateY(-120%);opacity:0}to{transform:none;opacity:1}}
+.mjwin{text-align:center;margin-top:8px;height:30px;font-size:15px;color:#d9c9f2}
+.mjwin b{font-size:24px;color:#f5d77a;text-shadow:0 0 10px #d4af37aa;font-variant-numeric:tabular-nums}
+.mjwin.big b{font-size:28px;color:#fff0b0}
+.mjbar{display:flex;align-items:center;gap:8px;margin-top:12px}
+.mjstat,.betv{text-align:center}
+.mjstat{flex:1;min-width:0;background:#1a0b2ecc;border:1px solid #d4af3755;border-radius:12px;padding:6px 4px}
+.mjstat .l,.betv .l{font-size:11px;color:#cdbbe8}
+.mjstat .v,.betv .v{font-size:17px;font-weight:800;color:#f5d77a;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.betsel{flex:1.2;display:flex;align-items:center;background:#1a0b2ecc;border:1px solid #d4af3755;border-radius:12px;padding:3px}
+.betsel button{width:34px;height:34px;padding:0;border-radius:50%;font-size:18px;flex:none}
+.betv{flex:1}
+.spin{flex:none;width:84px;height:84px;border-radius:50%;padding:0;font-size:19px;font-weight:900;color:#2a1600;background:radial-gradient(circle at 40% 30%,#fff6c8,#f5d77a 40%,#c8961e 80%);border:3px solid #fff0b0;box-shadow:0 0 0 4px #5b2a86,0 0 0 6px #d4af37,0 6px 20px #000a,0 0 24px #f5d77a66}
+.spin:active{transform:scale(.95)}
+.spin.busy span{display:inline-block;animation:spn .9s linear infinite}
+@keyframes spn{to{transform:rotate(360deg)}}
+.mjtools{margin-top:12px}.mjtools button{padding:7px 10px;font-size:13px}
+.mjmodal{position:fixed;inset:0;background:#0009;z-index:50;display:flex;align-items:flex-end;justify-content:center}
+.mjsheet{width:100%;max-width:520px;max-height:80vh;overflow:auto;background:linear-gradient(180deg,#2e1352,#1a0b2e);border:1px solid #d4af3799;border-radius:18px 18px 0 0;padding:14px;font-size:13px;line-height:1.6}
+.ptab{width:100%;border-collapse:collapse;margin:6px 0}.ptab td{padding:4px;border-bottom:1px solid #d4af3722;text-align:center}.ptab td:first-child{width:54px}
+.ptab .tile{width:38px;margin:0 auto}.ptab .tile .big{font-size:20px}.ptab .tile .wan b,.ptab .tile .wan i{font-size:13px}.ptab .tile .wd{font-size:12px}
+.hrow{display:flex;justify-content:space-between;border-bottom:1px solid #d4af3722;padding:6px 0}
+.mjsplash{position:fixed;inset:0;z-index:60;display:flex;align-items:center;justify-content:center;background:radial-gradient(circle,#5b2a86cc,#1a0b2ef2);text-align:center;animation:fi .25s}
+.mjsplash .in{padding:24px;border-radius:20px;border:2px solid #f5d77a;background:linear-gradient(180deg,#4a1a6e,#2a0f3d);box-shadow:0 0 40px #f5d77a88}
+.mjsplash .t{font-size:26px;font-weight:900;color:#f5d77a;letter-spacing:2px}.mjsplash .n{font-size:44px;font-weight:900;color:#fff0b0;text-shadow:0 0 18px #f5d77a}
+@keyframes fi{from{opacity:0}}
 </style>
 </head>
 <body>
@@ -124,10 +202,10 @@ h1{font-size:24px;margin:14px 0 4px;color:#f5d77a;text-shadow:0 1px 12px #d4af37
   </div>
 </div>
 
-<!-- 首页 -->
-<div id="home" class="wrap hidden">
-  <h1>♠ 时烽德州</h1>
-  <div class="muted">和朋友实时对战，最多 9 人一桌。只用游戏筹码，不涉及真钱。</div>
+<!-- 游戏大厅 -->
+<div id="hall" class="wrap hidden">
+  <h1>👑 时烽游戏大厅</h1>
+  <div class="muted">一个账号畅玩所有游戏，余额通用。只用游戏币，不涉及真钱，游戏币不能购买或兑现。</div>
   <div class="card-box" id="acct">
     <div class="row" style="flex-wrap:nowrap;justify-content:space-between">
       <div style="flex:1;min-width:0"><div class="muted">👤 <span id="uName"></span></div><div class="bal">余额 <b id="uBal">0</b></div></div>
@@ -140,6 +218,26 @@ h1{font-size:24px;margin:14px 0 4px;color:#f5d77a;text-shadow:0 1px 12px #d4af37
       <div class="muted hidden" id="supportSoon" style="margin-top:6px">客服联系方式即将公布，请稍后再来看看</div>
     </div>
   </div>
+  <div class="games">
+    <div class="gtile" id="gPoker">
+      <div class="gart poker"><span class="c1">A<i>♠</i></span><span class="c2">K<i>♥</i></span></div>
+      <div class="ginfo"><div class="gname">时烽德州</div><div class="gdesc">多人在线德州扑克 · 最多 9 人一桌</div><div class="gmeta" id="gPokerMeta">公开房间 0 个</div></div>
+      <div class="gbtn">进入</div>
+    </div>
+    <div class="gtile" id="gMahjong">
+      <div class="gart mj"><span class="mt t1">發</span><span class="mt t2">中</span><span class="mt t3">胡</span></div>
+      <div class="ginfo"><div class="gname">时烽麻将消消乐 <span class="newtag">新</span></div><div class="gdesc">单人麻将转轴 · 连消倍数最高 x10</div><div class="gmeta">1024 路 · 免费游戏</div></div>
+      <div class="gbtn">进入</div>
+    </div>
+  </div>
+  <div class="muted" style="text-align:center;margin:14px 0 6px">更多游戏敬请期待</div>
+</div>
+
+<!-- 时烽德州：房间列表 -->
+<div id="home" class="wrap hidden">
+  <div class="row" style="flex-wrap:nowrap;justify-content:space-between;margin-top:8px"><button class="ghost" id="btnHall1" style="flex:none;padding:6px 12px;font-size:13px">‹ 大厅</button><div class="bal" style="flex:none;font-size:17px">余额 <b id="uBal2">0</b></div></div>
+  <h1>♠ 时烽德州</h1>
+  <div class="muted">和朋友实时对战，最多 9 人一桌。只用游戏筹码，不涉及真钱。</div>
   <div class="card-box" id="roomsBox">
     <div class="row" style="justify-content:space-between;flex-wrap:nowrap"><h2 style="flex:none;margin:0">公开房间</h2><button class="ghost" id="btnRefresh" style="flex:none;padding:5px 12px;font-size:13px">刷新</button></div>
     <div id="roomList"></div>
@@ -193,6 +291,26 @@ h1{font-size:24px;margin:14px 0 4px;color:#f5d77a;text-shadow:0 1px 12px #d4af37
   <div id="log"></div>
 </div>
 
+<!-- 时烽麻将消消乐 -->
+<div id="mj" class="hidden">
+  <div class="mjtop"><button class="ghost" id="btnHall2">‹ 大厅</button><div class="mjtitle">时烽麻将消消乐</div><button class="ghost" id="mjRulesBtn">玩法</button></div>
+  <div class="mjboard">
+    <div class="mjfree hidden" id="mjFree">免费游戏 <b id="mjFreeN">0</b> / <b id="mjFreeT">0</b></div>
+    <div class="mults" id="mjMults"></div>
+    <div class="reels" id="mjGrid"></div>
+    <div class="mjwin" id="mjWin"><span class="lbl">赢得</span> <b id="mjWinV">0</b></div>
+  </div>
+  <div class="mjbar">
+    <div class="mjstat"><div class="l">余额</div><div class="v" id="mjBal">0</div></div>
+    <div class="betsel"><button id="mjMinus">－</button><div class="betv"><div class="l">下注</div><div class="v" id="mjBet">100</div></div><button id="mjPlus">＋</button></div>
+    <button class="spin" id="mjSpin" aria-label="开始"><span>开始</span></button>
+  </div>
+  <div class="row mjtools"><button class="ghost" id="mjFast">⚡ 极速：关</button><button class="ghost" id="mjHistBtn">📜 记录</button></div>
+  <div id="mjNoChips" class="nochips hidden" style="max-width:520px;margin:8px auto">💬 余额不足，请联系客服获取游戏币<button class="blue" id="mjSupport" style="width:100%;margin-top:8px">联系客服</button></div>
+  <div class="mjmodal hidden" id="mjModal"><div class="mjsheet"><div class="row" style="justify-content:space-between;flex-wrap:nowrap"><h2 style="flex:none;margin:0" id="mjModalT"></h2><button class="ghost" style="flex:none;padding:4px 12px" id="mjModalX">关闭</button></div><div id="mjModalB"></div></div></div>
+  <div class="mjsplash hidden" id="mjSplash"></div>
+</div>
+
 <script src="/socket.io/socket.io.js"></script>
 <script>
 const $ = (id) => document.getElementById(id);
@@ -214,8 +332,13 @@ if (params.get("room")) $("joinCode").value = params.get("room").toUpperCase();
 
 function toast(t) { const el = $("toast"); el.textContent = t; el.classList.remove("hidden"); clearTimeout(el._t); el._t = setTimeout(() => el.classList.add("hidden"), 2500); }
 let watching = false;
+// 大厅 / 德州房间列表 / 麻将 都算“首页类”页面：刷新或重连后回到上次所在的那个
+let homeView = location.hash === "#mahjong" ? "mj" : location.hash === "#poker" ? "home" : "hall";
 function show(id) {
-  for (const x of ["auth", "home", "lobby", "game"]) $(x).classList.toggle("hidden", x !== id);
+  if (id === "hall" || id === "home" || id === "mj") { homeView = id; const h = id === "mj" ? "#mahjong" : id === "home" ? "#poker" : ""; if (!code && location.hash !== h) history.replaceState(null, "", location.pathname + location.search + h); }
+  for (const x of ["auth", "hall", "home", "mj", "lobby", "game"]) $(x).classList.toggle("hidden", x !== id);
+  if (id === "hall") hallMeta();
+  if (id === "mj" && window.mjEnter) window.mjEnter();
   if (id === "home" && !watching && socket.connected) { watching = true; socket.emit("watchRooms", renderRooms); }
   else if (id !== "home" && watching) { watching = false; socket.emit("unwatchRooms"); }
 }
@@ -224,7 +347,7 @@ function setRoom(c) {
   code = c; localStorage.setItem("sf_room", c);
   history.replaceState(null, "", "/?room=" + c);
 }
-function clearRoom() { localStorage.removeItem("sf_room"); code = S = null; history.replaceState(null, "", "/"); }
+function clearRoom() { localStorage.removeItem("sf_room"); code = S = null; history.replaceState(null, "", "/#poker"); }
 
 // ---------- 账号 ----------
 let authMode = "login";
@@ -257,7 +380,8 @@ async function doAuth() {
 $("btnAuth").onclick = doAuth;
 $("aPass").onkeydown = $("aPass2").onkeydown = (e) => { if (e.key === "Enter") doAuth(); };
 function setMe(u) {
-  me = u; $("uName").textContent = u.username; $("uBal").textContent = u.balance.toLocaleString();
+  me = u; $("uName").textContent = u.username; $("uBal").textContent = $("uBal2").textContent = u.balance.toLocaleString();
+  if (window.mjOnMe) window.mjOnMe(u);
   // 余额为 0：提示联系客服（游戏币只能由庄家赠送）
   $("noChips").classList.toggle("hidden", u.balance > 0);
   const link = supportLink();
@@ -268,6 +392,13 @@ const SUPPORT_URL_FALLBACK = "";
 function supportLink() { return (me && me.supportUrl) || SUPPORT_URL_FALLBACK; }
 function contactSupport() { const l = supportLink(); if (l) window.open(l, "_blank", "noopener"); else toast("客服联系方式即将公布"); }
 $("btnSupport").onclick = contactSupport;
+// 大厅
+$("gPoker").onclick = () => show("home");
+$("gMahjong").onclick = () => show("mj");
+$("btnHall1").onclick = () => show("hall");
+async function hallMeta() {
+  try { const l = await (await fetch("/api/rooms")).json(); $("gPokerMeta").textContent = l.length ? `公开房间 ${l.length} 个 · ${l.reduce((a, r) => a + r.seats, 0)} 人在座` : "暂无公开房间，进去创建一个"; } catch (e) {}
+}
 function noChips(need) { toast(`余额不足，请联系客服获取游戏币（带入需要 ${need}，你有 ${me ? me.balance : 0}）`); }
 function logout() {
   post("/api/logout"); authToken = ""; localStorage.removeItem("sf_token"); clearRoom(); me = null;
@@ -340,10 +471,10 @@ $("btnLeave1").onclick = $("btnLeave2").onclick = leave;
 $("btnSit").onclick = () => { const me = S && S.game && S.game.players[S.you]; socket.emit("sitOut", !(me && me.sitOut)); };
 
 socket.on("connect", () => {
-  if (watching) { watching = false; if (!code) show("home"); }
+  if (watching) { watching = false; if (!code) show(homeView); }
   const c = (code || params.get("room") || "").toUpperCase();
   if (c && localStorage.getItem("sf_room") === c) join(c, true); // 刷新/断线后回到原座位
-  else if (!code) show("home");
+  else if (!code) show(homeView);
 });
 socket.on("toast", toast);
 socket.on("state", (s) => { S = s; offset = s.now - Date.now(); code = s.code; render(); });
@@ -470,10 +601,11 @@ setInterval(() => {
 // 启动：有登录令牌就验证并连接，否则显示登录页
 (async () => {
   if (await refreshMe()) {
-    if (!(params.get("room") && localStorage.getItem("sf_room") === params.get("room").toUpperCase())) show("home");
+    if (!(params.get("room") && localStorage.getItem("sf_room") === params.get("room").toUpperCase())) show(homeView);
     socket.connect();
   } else { authToken = ""; localStorage.removeItem("sf_token"); show("auth"); }
 })();
 </script>
+<script src="/mahjong.js"></script>
 </body>
 </html>

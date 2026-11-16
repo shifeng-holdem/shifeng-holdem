@@ -31,6 +31,10 @@ class PgStore {
       CREATE INDEX IF NOT EXISTS ledger_user ON ledger(user_id, id DESC);
       CREATE TABLE IF NOT EXISTS sessions (token TEXT PRIMARY KEY, user_id INTEGER NOT NULL, expires_at TIMESTAMPTZ NOT NULL);
       CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS slot_spins (
+        id BIGSERIAL PRIMARY KEY, user_id INTEGER NOT NULL, game TEXT NOT NULL, bet BIGINT NOT NULL, win BIGINT NOT NULL,
+        free_spins INTEGER NOT NULL DEFAULT 0, balance_after BIGINT NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT now());
+      CREATE INDEX IF NOT EXISTS slot_spins_user ON slot_spins(user_id, id DESC);
     `);
   }
   q(sql, args) { return this.pool.query(sql, args); }
@@ -93,6 +97,34 @@ class PgStore {
   async deleteUserSessions(userId) { await this.q(`DELETE FROM sessions WHERE user_id=$1`, [userId]); }
   async getSettings() { const r = await this.q(`SELECT * FROM settings`); return Object.fromEntries(r.rows.map((x) => [x.key, JSON.parse(x.value)])); }
   async setSetting(k, v) { await this.q(`INSERT INTO settings (key, value) VALUES ($1,$2) ON CONFLICT (key) DO UPDATE SET value=EXCLUDED.value`, [k, JSON.stringify(v)]); }
+  // 转轴游戏一次下注：扣下注、加奖金、记账、记录、庄家对冲，全部在一个事务里；余额不够就整笔作废
+  async slotSpin(userId, houseId, game, bet, win, freeSpins, label) {
+    const c = await this.pool.connect();
+    try {
+      await c.query("BEGIN");
+      const r = await c.query(`UPDATE users SET balance = balance - $2 + $3 WHERE id=$1 AND balance >= $2 AND NOT banned RETURNING balance`, [userId, bet, win]);
+      if (!r.rows.length) { await c.query("ROLLBACK"); throw new Error("INSUFFICIENT"); }
+      const bal = Number(r.rows[0].balance);
+      await c.query(`INSERT INTO ledger (user_id, delta, balance_after, reason, actor) VALUES ($1,$2,$3,$4,'system')`, [userId, win - bet, bal, label]);
+      const hr = await c.query(`UPDATE users SET balance = balance + $2 WHERE id=$1 RETURNING balance`, [houseId, bet - win]);
+      if (bet !== win) await c.query(`INSERT INTO ledger (user_id, delta, balance_after, reason, actor) VALUES ($1,$2,$3,$4,'system')`, [houseId, bet - win, Number(hr.rows[0].balance), label]);
+      const ins = await c.query(`INSERT INTO slot_spins (user_id, game, bet, win, free_spins, balance_after) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id, created_at`, [userId, game, bet, win, freeSpins, bal]);
+      await c.query("COMMIT");
+      return { balance: bal, id: Number(ins.rows[0].id), at: new Date(ins.rows[0].created_at).getTime() };
+    } catch (e) { if (e.message !== "INSUFFICIENT") await c.query("ROLLBACK").catch(() => {}); throw e; } finally { c.release(); }
+  }
+  async slotHistory(userId, game, limit = 20) {
+    const r = await this.q(`SELECT s.*, u.username FROM slot_spins s JOIN users u ON u.id=s.user_id WHERE ($1::int IS NULL OR s.user_id=$1) AND s.game=$2 ORDER BY s.id DESC LIMIT $3`, [userId, game, limit]);
+    return r.rows.map((x) => ({ id: Number(x.id), userId: Number(x.user_id), username: x.username, bet: Number(x.bet), win: Number(x.win), freeSpins: x.free_spins, balanceAfter: Number(x.balance_after), at: new Date(x.created_at).getTime() }));
+  }
+  async slotTotals(game, userId = null) {
+    const r = await this.q(`SELECT count(*) AS spins, COALESCE(sum(bet),0) AS bets, COALESCE(sum(win),0) AS wins, count(DISTINCT user_id) AS players, COALESCE(sum(CASE WHEN free_spins>0 THEN 1 ELSE 0 END),0) AS features, COALESCE(max(win),0) AS best FROM slot_spins WHERE game=$1 AND ($2::int IS NULL OR user_id=$2)`, [game, userId]);
+    const x = r.rows[0]; return { spins: Number(x.spins), bets: Number(x.bets), wins: Number(x.wins), players: Number(x.players), features: Number(x.features), best: Number(x.best) };
+  }
+  async slotTopPlayers(game, limit = 10) {
+    const r = await this.q(`SELECT s.user_id, u.username, count(*) AS spins, sum(s.bet) AS bets, sum(s.win) AS wins FROM slot_spins s JOIN users u ON u.id=s.user_id WHERE s.game=$1 GROUP BY s.user_id, u.username ORDER BY sum(s.bet) DESC LIMIT $2`, [game, limit]);
+    return r.rows.map((x) => ({ userId: Number(x.user_id), username: x.username, spins: Number(x.spins), bets: Number(x.bets), wins: Number(x.wins) }));
+  }
   async close() { await this.pool.end(); }
 }
 
@@ -140,6 +172,35 @@ class JsonStore {
   async deleteUserSessions(userId) { for (const [t, s] of Object.entries(this.d.sessions)) if (s.userId === userId) delete this.d.sessions[t]; this.save(); }
   async getSettings() { return { ...this.d.settings }; }
   async setSetting(k, v) { this.d.settings[k] = v; this.save(); }
+  async slotSpin(userId, houseId, game, bet, win, freeSpins, label) {
+    const r = this.u(userId); if (!r) throw new Error("NOUSER");
+    if (r.banned || r.balance < bet) throw new Error("INSUFFICIENT");
+    r.balance += win - bet; this.log(userId, win - bet, r.balance, label, "system");
+    const h = this.u(houseId); if (h) { h.balance += bet - win; if (bet !== win) this.log(houseId, bet - win, h.balance, label, "system"); }
+    const d = this.d; d.slotSpins ||= []; d.slotSeq = (d.slotSeq || 0) + 1; d.slotTotals ||= {};
+    const rec = { id: d.slotSeq, userId, game, bet, win, freeSpins, balanceAfter: r.balance, at: Date.now() };
+    d.slotSpins.push(rec); if (d.slotSpins.length > 20000) d.slotSpins.splice(0, d.slotSpins.length - 20000);
+    // 汇总单独累计，历史记录裁剪后总数仍然准确
+    for (const key of [game, game + ":" + userId]) {
+      const t = (d.slotTotals[key] ||= { spins: 0, bets: 0, wins: 0, features: 0, best: 0 });
+      t.spins++; t.bets += bet; t.wins += win; if (freeSpins) t.features++; t.best = Math.max(t.best, win);
+    }
+    this.save(); return { balance: r.balance, id: rec.id, at: rec.at };
+  }
+  async slotHistory(userId, game, limit = 20) {
+    return (this.d.slotSpins || []).filter((x) => x.game === game && (userId == null || x.userId === userId)).slice(-limit).reverse()
+      .map((x) => ({ ...x, username: (this.u(x.userId) || {}).username }));
+  }
+  async slotTotals(game, userId = null) {
+    const T = this.d.slotTotals || {}; const t = T[userId == null ? game : game + ":" + userId] || { spins: 0, bets: 0, wins: 0, features: 0, best: 0 };
+    const players = userId == null ? Object.keys(T).filter((k) => k.startsWith(game + ":")).length : (t.spins ? 1 : 0);
+    return { spins: t.spins, bets: t.bets, wins: t.wins, players, features: t.features, best: t.best };
+  }
+  async slotTopPlayers(game, limit = 10) {
+    const T = this.d.slotTotals || {};
+    return Object.entries(T).filter(([k]) => k.startsWith(game + ":")).map(([k, t]) => { const id = Number(k.split(":")[1]); return { userId: id, username: (this.u(id) || {}).username, spins: t.spins, bets: t.bets, wins: t.wins }; })
+      .sort((a, b) => b.bets - a.bets).slice(0, limit);
+  }
   async close() { this.save(); }
 }
 
