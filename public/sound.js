@@ -47,13 +47,16 @@
       o.connect(g); g.connect(bus); o.start(t); o.stop(t + dur + 0.05);
     }
   }
+  let noiseBuf = null;
   function noise(bus, t, dur, { freq = 2000, q = 1, vol = 0.3, type = "bandpass", sweep } = {}) {
-    const n = Math.floor(ctx.sampleRate * dur), b = ctx.createBuffer(1, n, ctx.sampleRate), d = b.getChannelData(0);
-    for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / n);
+    if (!noiseBuf) { // 白噪声只生成一次，之后每次复用（避免每个音效都在主线程上填几万个采样）
+      const n = ctx.sampleRate * 2; noiseBuf = ctx.createBuffer(1, n, ctx.sampleRate); const d = noiseBuf.getChannelData(0);
+      for (let i = 0; i < n; i++) d[i] = Math.random() * 2 - 1;
+    }
     const s = ctx.createBufferSource(), f = ctx.createBiquadFilter(), g = ctx.createGain();
-    s.buffer = b; f.type = type; f.frequency.setValueAtTime(freq, t); if (sweep) f.frequency.exponentialRampToValueAtTime(sweep, t + dur); f.Q.value = q;
+    s.buffer = noiseBuf; s.loop = true; f.type = type; f.frequency.setValueAtTime(freq, t); if (sweep) f.frequency.exponentialRampToValueAtTime(sweep, t + dur); f.Q.value = q;
     g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-    s.connect(f); f.connect(g); g.connect(bus); s.start(t); s.stop(t + dur);
+    s.connect(f); f.connect(g); g.connect(bus); s.start(t, Math.random() * 1.5); s.stop(t + dur);
   }
   function tone(bus, freq, t, dur, { type = "sine", vol = 0.3, to } = {}) {
     const o = ctx.createOscillator(), g = ctx.createGain(); o.type = type; o.frequency.setValueAtTime(freq, t); if (to) o.frequency.exponentialRampToValueAtTime(to, t + dur);
@@ -170,8 +173,9 @@
     document.querySelectorAll(".sndgrp").forEach(render);
   }
   function render(el) {
-    el.innerHTML = `<button class="snd ${st.music ? "on" : ""}" data-k="music" aria-label="背景音乐" title="背景音乐">${st.music ? "🎵" : "🎵"}<i>${st.music ? "" : "╲"}</i></button><button class="snd ${st.sfx ? "on" : ""}" data-k="sfx" aria-label="音效" title="音效">${st.sfx ? "🔊" : "🔇"}</button><button class="snd ${st.voice ? "on" : ""}" data-k="voice" aria-label="配音" title="配音">🗣<i>${st.voice ? "" : "╲"}</i></button>`;
-    el.querySelectorAll("button").forEach((b) => b.onclick = (e) => { e.stopPropagation(); unlock(); const k = b.dataset.k; st[k] = !st[k]; localStorage.setItem(LS[k], st[k] ? "1" : "0"); apply(); if (k === "sfx" && st.sfx) FX.tap(); if (window.toast) toast(`${k === "music" ? "背景音乐" : k === "sfx" ? "音效" : "配音"}已${st[k] ? "开启" : "关闭"}`); });
+    el.innerHTML = `<button class="snd ${st.music ? "on" : ""}" data-k="music" aria-label="背景音乐" title="背景音乐">${st.music ? "🎵" : "🎵"}<i>${st.music ? "" : "╲"}</i></button><button class="snd ${st.sfx ? "on" : ""}" data-k="sfx" aria-label="音效" title="音效">${st.sfx ? "🔊" : "🔇"}</button><button class="snd ${st.voice ? "on" : ""}" data-k="voice" aria-label="配音" title="配音">🗣<i>${st.voice ? "" : "╲"}</i></button>${window.sfFsButton ? window.sfFsButton() : ""}`;
+    const fb = el.querySelector("[data-fs]"); if (fb) fb.onclick = (e) => { e.stopPropagation(); unlock(); window.sfFullscreen(); };
+    el.querySelectorAll("button[data-k]").forEach((b) => b.onclick = (e) => { e.stopPropagation(); unlock(); const k = b.dataset.k; st[k] = !st[k]; localStorage.setItem(LS[k], st[k] ? "1" : "0"); apply(); if (k === "sfx" && st.sfx) FX.tap(); if (window.toast) toast(`${k === "music" ? "背景音乐" : k === "sfx" ? "音效" : "配音"}已${st[k] ? "开启" : "关闭"}`); });
   }
   function unlock() {
     if (!ensure()) return;

@@ -154,13 +154,13 @@ export async function createApp(opts = {}) {
       res.json({ ok: true, avatarVer: ver });
     } catch (e) { next(e); }
   });
-  app.delete("/api/me/avatar", auth, async (req, res, next) => { try { await store.clearAvatar(req.user.id); updateMemberAvatar(req.user.id, 0); pushMe(req.user.id); res.json({ ok: true, avatarVer: 0 }); } catch (e) { next(e); } });
+  app.delete("/api/me/avatar", auth, async (req, res, next) => { try { const ver = await store.clearAvatar(req.user.id); updateMemberAvatar(req.user.id, ver); pushMe(req.user.id); res.json({ ok: true, avatarVer: ver }); } catch (e) { next(e); } });
   // 头像：/api/avatar/10001?v=3 ；没上传的生成默认头像（首字 + 紫金渐变）
   app.get("/api/avatar/:pid", async (req, res, next) => {
     try {
       const u = await store.getUserByPublicId(Number(req.params.pid));
       if (!u) return res.status(404).end();
-      const a = u.avatarVer ? await store.getAvatar(u.id) : null;
+      const a = u.avatarVer > 0 ? await store.getAvatar(u.id) : null; // 负数 = 已恢复默认（保留版本号，避免缓存串图）
       const etag = `"av${u.id}-${u.avatarVer}"`;
       res.set("ETag", etag); res.set("Cache-Control", req.query.v != null ? "public, max-age=31536000, immutable" : "public, max-age=300");
       if (req.headers["if-none-match"] === etag) return res.status(304).end();

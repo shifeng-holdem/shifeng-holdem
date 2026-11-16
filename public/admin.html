@@ -49,13 +49,22 @@ h1{font-size:22px;margin:10px 0 2px;color:#f5d77a;text-shadow:0 1px 12px #d4af37
 #toast{position:fixed;left:50%;top:14px;transform:translateX(-50%);background:#1a0b2ef2;border:1px solid #d4af37aa;color:#fff;padding:8px 14px;border-radius:10px;z-index:99;font-size:14px;box-shadow:0 6px 18px #000a}
 .presets button{flex:1 1 auto}
 .mem{display:flex;justify-content:space-between;align-items:center;font-size:13px;padding:4px 0}
+.av{width:40px;height:40px;border-radius:50%;flex:none;object-fit:cover;border:2px solid #d4af37;box-shadow:0 2px 0 #8a6408,0 4px 8px #0008;background:#2a1149}
+.pid{font-size:12px;color:#f5d77a;font-weight:700;font-variant-numeric:tabular-nums}
+/* 立体面板 */
+.box{box-shadow:0 1px 0 #f5d77a33 inset,0 -2px 0 #0006 inset,0 3px 0 #12061f,0 10px 22px #0008}
+.stat{box-shadow:inset 0 1px 0 #f5d77a22,0 3px 0 #0d0518,0 6px 12px #0006}
+h1{color:#f5d77a;text-shadow:0 1px 0 #c89b2a,0 2px 0 #a07a12,0 3px 0 #7a5a08,0 5px 8px #000a!important}
+button.pri{box-shadow:inset 0 1px 0 #fff8,0 3px 0 #8a6408,0 5px 10px #0007}
+button.pri:active{transform:translateY(2px);box-shadow:inset 0 1px 0 #fff8,0 1px 0 #8a6408,0 2px 4px #0007}
+footer.safe{text-align:center;font-size:11px;color:#b9a6d6;opacity:.75;padding:14px 0 calc(10px + env(safe-area-inset-bottom))}
 </style>
 </head>
 <body>
 <div id="toast" class="hidden"></div>
 <div class="wrap">
   <h1>时烽德州 · 庄家后台</h1>
-  <div class="muted">只管理游戏筹码：没有真钱，筹码不能购买或兑现。</div>
+  <div class="muted">紫晶为席，以牌会友 · 庄家后台</div>
 
   <div id="loginBox" class="box hidden">
     <h2>管理员登录</h2>
@@ -74,7 +83,7 @@ h1{font-size:22px;margin:10px 0 2px;color:#f5d77a;text-shadow:0 1px 12px #d4af37
 
     <div id="t-users" class="hidden">
       <div class="box">
-        <div class="row" style="flex-wrap:nowrap"><input id="q" placeholder="搜索用户名"><button id="btnQ" style="flex:none">搜索</button></div>
+        <div class="row" style="flex-wrap:nowrap"><input id="q" placeholder="搜索用户名或 ID（如 10001）"><button id="btnQ" style="flex:none">搜索</button></div>
         <div id="users" style="margin-top:8px"></div>
       </div>
     </div>
@@ -102,10 +111,14 @@ h1{font-size:22px;margin:10px 0 2px;color:#f5d77a;text-shadow:0 1px 12px #d4af37
     </div>
   </div>
 </div>
+<footer class="safe">游戏币仅供娱乐，不可兑换或交易</footer>
 <script>
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-const fmt = (n) => Number(n).toLocaleString();
+// 金额（服务器是整数分）→ 1,000.00；num 用于局数、人数
+const fmt = (c) => { c = Math.round(+c || 0); const neg = c < 0; c = Math.abs(c); return (neg ? "-" : "") + Math.floor(c / 100).toLocaleString("en-US") + "." + String(c % 100).padStart(2, "0"); };
+const num = (n) => Number(n || 0).toLocaleString();
+const toCents = (v) => { const n = parseFloat(String(v).replace(/[,，\s]/g, "")); return Number.isFinite(n) ? Math.round(n * 100) : 0; };
 const t2 = (ms) => ms ? new Date(ms).toLocaleString("zh-CN", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "—";
 let token = localStorage.getItem("sf_admin_token") || "";
 let tab = "ov", timer = null;
@@ -155,28 +168,28 @@ async function loadUsers() {
   usersCache = await call("GET", "/api/admin/users?q=" + encodeURIComponent($("q").value.trim()));
   $("users").innerHTML = usersCache.length ? usersCache.map((u) => `<div class="item" id="u${u.id}">
     <div class="row" style="justify-content:space-between">
-      <div><span class="name">${esc(u.username)}</span>${u.isAdmin ? '<span class="tag adm">管理员</span>' : ""}${u.banned ? '<span class="tag ban">已封禁</span>' : ""}${u.online ? '<span class="tag on">在线</span>' : ""}${u.room ? `<span class="tag">房间 ${esc(u.room)}</span>` : ""}</div>
+      <div class="row" style="gap:8px;flex-wrap:nowrap"><img class="av" src="/api/avatar/${u.publicId}?v=${u.avatarVer || 0}" alt="" loading="lazy"><div><span class="pid">ID ${u.publicId}</span> · <span class="name">${esc(u.username)}</span>${u.isAdmin ? '<span class="tag adm">管理员</span>' : ""}${u.banned ? '<span class="tag ban">已封禁</span>' : ""}${u.online ? '<span class="tag on">在线</span>' : ""}${u.room ? `<span class="tag">房间 ${esc(u.room)}</span>` : ""}</div></div>
       <div class="money">${fmt(u.balance)}</div>
     </div>
-    <div class="muted">ID ${u.id} · 注册 ${t2(u.createdAt)} · 最近登录 ${t2(u.lastLogin)}</div>
+    <div class="muted">注册 ${t2(u.createdAt)} · 最近登录 ${t2(u.lastLogin)}</div>
     <div class="row" style="margin-top:6px"><button class="pri sm" onclick="openGift(${u.id})">🎁 赠送</button><button class="sm" onclick="openAdjust(${u.id})">扣除</button><button class="sm ghost" onclick="openLedger(${u.id})">流水</button>${u.isAdmin ? "" : `<button class="sm ${u.banned ? "" : "red"}" onclick="ban(${u.id}, ${!u.banned})">${u.banned ? "解封" : "封禁"}</button>`}</div>
     <div class="extra"></div></div>`).join("") : `<div class="muted" style="padding:8px 0">没有找到玩家</div>`;
 }
 $("btnQ").onclick = loadUsers; $("q").onkeydown = (e) => { if (e.key === "Enter") loadUsers(); };
 function extra(id) { return document.querySelector(`#u${id} .extra`); }
-const PRESETS = [1000, 5000, 10000, 50000, 100000];
+const PRESETS = [100000, 500000, 1000000, 5000000, 10000000]; // 分：1,000.00 … 100,000.00
 function openGift(id) {
   extra(id).innerHTML = `<div class="box gift" style="margin:8px 0 0;padding:10px">
-    <div class="row presets">${PRESETS.map((n) => `<button class="sm ghost" onclick="setGift(${id}, ${n})">${n >= 10000 ? n / 10000 + " 万" : fmt(n)}</button>`).join("")}</div>
-    <label>赠送数量</label><input id="ga${id}" type="number" inputmode="numeric" placeholder="输入数量或点上面的快捷金额" oninput="giftLabel(${id})">
+    <div class="row presets">${PRESETS.map((n) => `<button class="sm ghost" onclick="setGift(${id}, ${n})">${n >= 1000000 ? n / 1000000 + " 万" : num(n / 100)}</button>`).join("")}</div>
+    <label>赠送数量</label><input id="ga${id}" inputmode="decimal" placeholder="可以带小数，如 12.50" oninput="giftLabel(${id})">
     <label>备注（可不填，默认“管理员赠送”）</label><input id="gr${id}" maxlength="100" placeholder="管理员赠送">
     <div class="row" style="margin-top:8px"><button class="pri" style="flex:1" id="gb${id}" onclick="gift(${id})">确认赠送</button><button class="ghost sm" onclick="extra(${id}).innerHTML=''">取消</button></div></div>`;
   $("ga" + id).focus();
 }
-function setGift(id, n) { $("ga" + id).value = n; giftLabel(id); }
-function giftLabel(id) { const n = Math.trunc(+$("ga" + id).value); $("gb" + id).textContent = n > 0 ? `确认赠送 ${fmt(n)}` : "确认赠送"; }
+function setGift(id, n) { $("ga" + id).value = (n / 100).toFixed(2); giftLabel(id); }
+function giftLabel(id) { const n = toCents($("ga" + id).value); $("gb" + id).textContent = n > 0 ? `确认赠送 ${fmt(n)}` : "确认赠送"; }
 async function gift(id) {
-  const delta = Math.trunc(+$("ga" + id).value); const reason = $("gr" + id).value.trim();
+  const delta = toCents($("ga" + id).value); const reason = $("gr" + id).value.trim();
   if (!(delta > 0)) return toast("请输入赠送数量");
   const btn = $("gb" + id); btn.disabled = true;
   try { const d = await call("POST", `/api/admin/users/${id}/adjust`, { delta, reason }); toast(`已赠送 ${fmt(delta)}，新余额 ${fmt(d.balance)}`); loadUsers(); }
@@ -184,12 +197,12 @@ async function gift(id) {
 }
 function openAdjust(id) {
   extra(id).innerHTML = `<div class="box" style="margin:8px 0 0;padding:10px">
-    <label>扣除数量</label><input id="ad${id}" type="number" inputmode="numeric" placeholder="例如 2000">
+    <label>扣除数量</label><input id="ad${id}" inputmode="decimal" placeholder="例如 20.50">
     <label>原因（可不填，默认“管理员扣除”）</label><input id="ar${id}" maxlength="100" placeholder="管理员扣除">
     <div class="row" style="margin-top:8px"><button class="red sm" onclick="adjust(${id})">确认扣除</button><button class="ghost sm" onclick="extra(${id}).innerHTML=''">取消</button></div></div>`;
 }
 async function adjust(id) {
-  const n = Math.abs(Math.trunc(+$("ad" + id).value)), reason = $("ar" + id).value.trim();
+  const n = Math.abs(toCents($("ad" + id).value)), reason = $("ar" + id).value.trim();
   if (!n) return toast("请输入数量");
   const u = usersCache.find((x) => x.id === id);
   if (!confirm(`从 ${u.username} 扣除 ${fmt(n)} 筹码？`)) return;
@@ -208,10 +221,10 @@ async function ban(id, banned) {
 async function loadMj() {
   const d = await call("GET", "/api/admin/mahjong"); const t = d.totals;
   const pc = (v) => v == null ? "—" : (v * 100).toFixed(1) + "%";
-  const items = [["总局数", fmt(t.spins)], ["参与玩家", fmt(t.players)], ["玩家总下注", fmt(t.bets)], ["总派彩", fmt(t.wins)],
-    ["庄家盈亏", `<span class="${t.profit >= 0 ? "pos" : "neg"}">${t.profit >= 0 ? "+" : ""}${fmt(t.profit)}</span>`], ["实际返还率", pc(t.rtp)], ["触发免费游戏", fmt(t.features) + " 次"], ["单局最高派彩", fmt(t.best)]];
+  const items = [["总局数", num(t.spins)], ["参与玩家", num(t.players)], ["玩家总下注", fmt(t.bets)], ["总派彩", fmt(t.wins)],
+    ["庄家盈亏", `<span class="${t.profit >= 0 ? "pos" : "neg"}">${t.profit >= 0 ? "+" : ""}${fmt(t.profit)}</span>`], ["实际返还率", pc(t.rtp)], ["触发免费游戏", num(t.features) + " 次"], ["单局最高派彩", fmt(t.best)]];
   $("mjStats").innerHTML = items.map(([l, v]) => `<div class="stat"><div class="v">${v}</div><div class="l">${l}</div></div>`).join("");
-  $("mjTop").innerHTML = d.top.length ? d.top.map((u) => { const p = u.bets - u.wins; return `<div class="mem"><span><b>${esc(u.username)}</b> <span class="muted">${fmt(u.spins)} 局</span></span><span>下注 <span class="money">${fmt(u.bets)}</span> · 派彩 ${fmt(u.wins)} · 庄家 <span class="${p >= 0 ? "pos" : "neg"}">${p >= 0 ? "+" : ""}${fmt(p)}</span></span></div>`; }).join("") : `<div class="muted">还没有人玩过</div>`;
+  $("mjTop").innerHTML = d.top.length ? d.top.map((u) => { const p = u.bets - u.wins; return `<div class="mem"><span><b>${esc(u.username)}</b> <span class="muted">${num(u.spins)} 局</span></span><span>下注 <span class="money">${fmt(u.bets)}</span> · 派彩 ${fmt(u.wins)} · 庄家 <span class="${p >= 0 ? "pos" : "neg"}">${p >= 0 ? "+" : ""}${fmt(p)}</span></span></div>`; }).join("") : `<div class="muted">还没有人玩过</div>`;
   $("mjRecent").innerHTML = d.recent.length ? d.recent.map((h) => `<div>${t2(h.at)} · <b>${esc(h.username)}</b> 下注 ${fmt(h.bet)} → ${h.win ? `<span class="pos">赢 ${fmt(h.win)}</span>` : `<span class="muted">未中</span>`}${h.freeSpins ? ` · 免费游戏 ${h.freeSpins} 次` : ""} · 余额 ${fmt(h.balanceAfter)}</div>`).join("") : "暂无记录";
 }
 

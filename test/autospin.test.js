@@ -20,9 +20,9 @@ test("自动转：次数递减、无限、各种停止条件", () => {
   assert.match(A.afterSpin(A.create(30), { ...ok, error: true }), /出错/);
   assert.match(A.afterSpin(A.create(30), { ...ok, hidden: true }), /离开/);
   assert.match(A.afterSpin(A.create(30), { ...ok, left: true }), /离开/);
-  assert.match(A.afterSpin(A.create(30, { winOver: 1000 }), { ...ok, win: 1500 }), /单次赢得 1,500/);
+  assert.match(A.afterSpin(A.create(30, { winOver: 1000 }), { ...ok, win: 1500 }), /单次赢得 15\.00，超过 10\.00/);
   assert.equal(A.afterSpin(A.create(30, { winOver: 1000 }), { ...ok, win: 1000 }), null, "等于不算超过");
-  assert.match(A.afterSpin(A.create(30, { balUnder: 6000 }), ok), /余额低于 6,000/);
+  assert.match(A.afterSpin(A.create(30, { balUnder: 6000 }), ok), /余额低于 60\.00/);
   const s = A.create(50); s.stopReq = true; assert.equal(A.afterSpin(s, ok), "自动已停止");
   assert.equal(A.canStart({ balance: 99, bet: 100 }), "余额不足，请联系客服获取游戏币");
 });

@@ -78,8 +78,9 @@ test("头像：类型和大小校验、上传后可访问并带缓存头、默�
     const ok2 = await upload(ctx, a.token, jpg, "image/jpeg"); assert.equal((await ok2.json()).avatarVer, 2);
     assert.equal((await api(ctx, "GET", "/api/me", null, a.token)).data.avatarVer, 2);
     assert.equal((await fetch(`${ctx.url}/api/avatar/${pid}?v=2`)).headers.get("content-type"), "image/jpeg");
-    assert.equal((await api(ctx, "DELETE", "/api/me/avatar", null, a.token)).data.avatarVer, 0);
+    assert.equal((await api(ctx, "DELETE", "/api/me/avatar", null, a.token)).data.avatarVer, -2);
     assert.match((await fetch(`${ctx.url}/api/avatar/${pid}`)).headers.get("content-type"), /svg/);
+    const ok3 = await upload(ctx, a.token, png, "image/png"); assert.equal((await ok3.json()).avatarVer, 3, "恢复默认后再上传，版本号不回退（不会命中旧缓存）");
     assert.equal((await fetch(`${ctx.url}/api/avatar/99999999`)).status, 404);
   } finally { await ctx.close(); }
 });

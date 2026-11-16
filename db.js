@@ -171,9 +171,9 @@ class PgStore {
   async getUserByPublicId(pid) { return rowToUser((await this.q(`SELECT * FROM users WHERE public_id=$1`, [pid])).rows[0]); }
   async setAvatar(userId, mime, buf) {
     await this.q(`INSERT INTO avatars (user_id, mime, data) VALUES ($1,$2,$3) ON CONFLICT (user_id) DO UPDATE SET mime=EXCLUDED.mime, data=EXCLUDED.data, updated_at=now()`, [userId, mime, buf]);
-    return Number((await this.q(`UPDATE users SET avatar_ver = avatar_ver + 1 WHERE id=$1 RETURNING avatar_ver`, [userId])).rows[0].avatar_ver);
+    return Number((await this.q(`UPDATE users SET avatar_ver = abs(avatar_ver) + 1 WHERE id=$1 RETURNING avatar_ver`, [userId])).rows[0].avatar_ver);
   }
-  async clearAvatar(userId) { await this.q(`DELETE FROM avatars WHERE user_id=$1`, [userId]); await this.q(`UPDATE users SET avatar_ver = 0 WHERE id=$1`, [userId]); return 0; }
+  async clearAvatar(userId) { await this.q(`DELETE FROM avatars WHERE user_id=$1`, [userId]); return Number((await this.q(`UPDATE users SET avatar_ver = -abs(avatar_ver) WHERE id=$1 RETURNING avatar_ver`, [userId])).rows[0].avatar_ver); }
   async getAvatar(userId) { const r = (await this.q(`SELECT mime, data FROM avatars WHERE user_id=$1`, [userId])).rows[0]; return r ? { mime: r.mime, data: r.data } : null; }
   async addPokerStats(userId, won, amount) {
     await this.q(`UPDATE users SET hands_played = hands_played + 1, hands_won = hands_won + $2, poker_best = GREATEST(poker_best, $3) WHERE id=$1`, [userId, won ? 1 : 0, amount]);
@@ -273,8 +273,8 @@ class JsonStore {
       .sort((a, b) => b.bets - a.bets).slice(0, limit);
   }
   async getUserByPublicId(pid) { return this.pub(this.d.users.find((x) => x.publicId === Number(pid))); }
-  async setAvatar(userId, mime, buf) { const u = this.u(userId); this.d.avatars[userId] = { mime, b64: buf.toString("base64") }; u.avatarVer = (u.avatarVer || 0) + 1; this.save(); return u.avatarVer; }
-  async clearAvatar(userId) { delete this.d.avatars[userId]; this.u(userId).avatarVer = 0; this.save(); return 0; }
+  async setAvatar(userId, mime, buf) { const u = this.u(userId); this.d.avatars[userId] = { mime, b64: buf.toString("base64") }; u.avatarVer = Math.abs(u.avatarVer || 0) + 1; this.save(); return u.avatarVer; }
+  async clearAvatar(userId) { delete this.d.avatars[userId]; const u = this.u(userId); u.avatarVer = -Math.abs(u.avatarVer || 0); this.save(); return u.avatarVer; }
   async getAvatar(userId) { const a = this.d.avatars[userId]; return a ? { mime: a.mime, data: Buffer.from(a.b64, "base64") } : null; }
   async addPokerStats(userId, won, amount) { const u = this.u(userId); if (!u) return; u.handsPlayed = (u.handsPlayed || 0) + 1; u.handsWon = (u.handsWon || 0) + (won ? 1 : 0); u.pokerBest = Math.max(u.pokerBest || 0, amount); this.save(); }
   async close() { this.save(); }
