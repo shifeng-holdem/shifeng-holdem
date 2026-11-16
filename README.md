@@ -2,7 +2,25 @@
 
 和朋友实时对战的德州扑克网页游戏。手机（iPhone）优先的简体中文界面，2–9 人一桌，可以加电脑玩家补位。
 
-> 只使用游戏筹码，不涉及真钱，没有充值、兑换或任何支付功能。
+> 只使用游戏筹码：没有真钱、没有加密货币，筹码不能购买，也不能兑现。没有任何支付功能。
+
+## 账号与筹码
+
+- 必须注册账号才能玩（不支持游客）。用户名 2–16 位，密码至少 6 位，密码用 bcrypt 加密保存；登录后令牌保存在本机，30 天有效
+- 每个账号有一个长期余额：注册赠送（默认 10000），每天可免费领取一次（默认 2000，按北京时间算一天，可用 `CLAIM_TZ` 修改）
+- 进房间时从余额“带入”房间设定的筹码；离开房间、房间被关闭或清理时，桌上剩余的筹码自动返还到余额；输光后可以从余额补充筹码
+- 一手牌进行中离开：自动弃牌，这手结束后返还；一手牌进行中房间被关闭或服务器重启（Render 部署时）：这手作废，所有下注原数退回
+- 电脑玩家的带入由“庄家账户”出资，电脑离桌时返还；抽水（可选）也进入庄家账户
+- 每一笔余额变动都记流水（注册赠送、每日领取、带入、返还、后台加减等）
+
+## 庄家后台 `/admin`
+
+只有管理员账号能进（其他账号访问接口返回 403）。管理员账号在每次启动时根据环境变量 `ADMIN_USERNAME` / `ADMIN_PASSWORD` 创建或更新密码，代码里不保存任何密码。
+
+- 概览：在线人数、房间数、在座真人/电脑、注册人数、庄家余额、桌上筹码、抽水比例；没接数据库时会显示警告
+- 玩家：搜索、查看余额和流水、加/减筹码（必须填写原因，记入流水）、封禁/解封（封禁会把他请出房间并返还筹码、让他下线）
+- 房间：查看所有房间（含私密房间）和在线人数、关闭房间、踢出玩家（筹码返还余额）
+- 设置：每日免费领取数量、注册赠送数量、抽水比例（0–10%，翻牌后才抽，不抽没人跟注的部分，从下一手生效）
 
 ## 功能
 
@@ -24,51 +42,72 @@
 
 ```bash
 npm install
-npm start            # 默认 http://localhost:3000，端口可用环境变量 PORT 修改
+ADMIN_USERNAME=boss ADMIN_PASSWORD=换成你的密码 npm start   # 默认 http://localhost:3000，端口可用 PORT 修改
 ```
+
+没有设置 `DATABASE_URL` 时，数据保存在本地文件 `data/db.json`（可用 `DATA_FILE` 修改路径），启动时会打印警告。这只适合本地试玩：Render 免费实例每次部署、重启或休眠后文件都会被清空。
 
 用手机测试：电脑和手机连同一个 Wi-Fi，手机浏览器打开 `http://电脑的局域网IP:3000`。
 
 ## 测试
 
 ```bash
-npm test
+npm test                                             # 用内存存储
+TEST_DATABASE_URL=postgres://... npm test             # 用真实 Postgres 再跑一遍（每次测试用独立 schema）
 ```
 
 - `test/engine.test.js`：枚举全部 2,598,960 种五张牌验证牌型数量；七选五、踢脚、平分；边池；单挑与多人盲注顺序、庄位轮转；最小加注和短码全下；指定牌面的多人全下边池结算；2–9 人随机模拟的筹码守恒
+- `test/auth.test.js`：注册/登录/会话/bcrypt/输错锁定/每日领取/管理员环境变量
+- `test/economy.test.js`：带入与返还的筹码守恒、余额不足、输光补充、牌局中关闭房间（含服务器关机）全额退回
+- `test/admin.test.js`：未登录 401、普通玩家 403、加减筹码记账、封禁/解封、房间管理、每日领取设置、抽水进入庄家账户
 - `test/rooms.test.js`：公开房间列表与实时推送、私密房间不可见但可凭码加入、已满不能加入、无人房间清理
 - `test/multiplayer.test.js`：启动真实服务器，4 个 Socket.IO 客户端加 1 个电脑玩家连续打 8 手牌（检查筹码守恒、摊牌前不泄露底牌），断线重连回原座位，超时自动操作，9 人满员拒绝加入
 
-## 部署到公网（免费）
+## 部署到公网（Render + 免费 Postgres）
 
-推荐 **Render**（免费 Web Service 支持 WebSocket）。
+### 1. 准备数据库（二选一）
 
-1. 注册 GitHub 账号，新建一个仓库，把本文件夹全部上传（`node_modules` 不用传）。
-2. 用 GitHub 账号登录 https://render.com ，点 **New → Web Service**，选择这个仓库。
-3. 设置：
-   - Runtime：Node
-   - Build Command：`npm install`
-   - Start Command：`npm start`
-   - Instance Type：Free
-4. 点 **Create Web Service**，几分钟后得到 `https://xxxx.onrender.com` 网址，发给朋友即可。Render 会自动设置 `PORT`。
+**推荐：Neon 免费 Postgres**（长期免费，不会过期；1 GB 存储，空闲 5 分钟自动休眠、几百毫秒内唤醒）
 
-免费版注意：
+1. 用 GitHub 或邮箱注册 https://neon.com ，新建一个 Project（区域选离用户近的，比如新加坡）
+2. 在 Dashboard 点 **Connect**，复制连接串（形如 `postgresql://...@...neon.tech/neondb?sslmode=require`）
 
-- 15 分钟没人访问会休眠，下次打开要等 30–60 秒唤醒。
-- 房间保存在服务器内存里，服务休眠或重新部署后，房间会清空，重新建一个就行。
+**或者：Render 自带的免费 Postgres**（Render 面板 **New → Postgres → Free**）
+
+- 注意：免费库创建 **30 天后过期**，过期后 14 天内不升级（最低 $6/月）就会被删除，数据全部丢失；每个账号只能有一个免费库，没有备份
+- 创建后在数据库页面复制 **Internal Database URL**
+
+### 2. 在 Render 的 Web Service 里设置环境变量
+
+打开 Render 面板 → 你的 Web Service → **Environment**，添加：
+
+| 变量 | 必填 | 说明 |
+| --- | --- | --- |
+| `DATABASE_URL` | 是 | 上一步复制的 Postgres 连接串。不填也能启动，但会退回本地文件，部署/重启后账号和余额全部丢失 |
+| `ADMIN_USERNAME` | 是 | 庄家（管理员）用户名，2–16 位 |
+| `ADMIN_PASSWORD` | 是 | 庄家密码，建议 16 位以上随机密码。每次启动都会用它更新管理员密码 |
+| `CLAIM_TZ` | 否 | 每日领取按哪个时区算一天，默认 `Asia/Shanghai` |
+| `PGSSL` | 否 | 只有连本机/内网不带 SSL 的数据库时设为 `disable` |
+
+保存后 Render 会自动重新部署。数据表在第一次启动时自动创建，不需要手动建表。
+
+### 3. 部署设置
+
+- Build Command：`npm install`
+- Start Command：`npm start`
+- Instance Type：Free（15 分钟没人访问会休眠，下次打开要等约 1 分钟；休眠/部署前服务器会把桌上筹码自动返还到余额）
 
 ### 也可以用 Railway
 
-1. 用 GitHub 登录 https://railway.app ，**New Project → Deploy from GitHub repo**，选择仓库。
-2. 它会自动识别 Node 项目并执行 `npm start`。
-3. 在 **Settings → Networking** 点 **Generate Domain**，得到公网网址。
-
-Railway 目前没有长期免费套餐，新账号只有试用额度，用完需要付费。
+Railway 可以一键加 Postgres 插件并自动注入 `DATABASE_URL`，但目前没有长期免费套餐，新账号只有试用额度。
 
 ## 文件结构
 
 ```
-server.js          Express + Socket.IO 服务器：房间、座位、计时、重连、电脑玩家
+server.js          Express + Socket.IO 服务器：账号、余额、房间、座位、计时、重连、电脑玩家、后台接口
+db.js              数据存储：Postgres（DATABASE_URL）或本地 JSON 文件
+public/admin.html  庄家后台页面（/admin）
+testlib/           测试辅助函数
 engine.js          游戏引擎（由 engine.ts 生成的纯 JS，服务器实际使用这个）
 engine.ts          游戏引擎源码（带类型）：发牌、下注、比牌、边池、电脑 AI
 public/index.html  手机端网页（大厅 + 牌桌），无需构建

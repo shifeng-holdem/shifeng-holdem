@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex">
+<link rel="icon" href="data:,">
+<title>时烽德州 · 庄家后台</title>
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:#0a2016;color:#f3f3ef;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Helvetica Neue",sans-serif}
+body{padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom)}
+button{font:inherit;border:0;border-radius:10px;padding:9px 12px;font-weight:600;color:#fff;background:#2e5f46;cursor:pointer}
+button:disabled{opacity:.35}
+button.pri{background:#e0a82e;color:#2a1c00}button.red{background:#a8322d}button.ghost{background:transparent;border:1px solid #ffffff44}
+button.sm{padding:5px 10px;font-size:13px}
+input{font:inherit;font-size:16px;padding:9px 10px;border-radius:10px;border:1px solid #ffffff33;background:#0f3323;color:#fff;width:100%}
+label{font-size:13px;opacity:.8;display:block;margin:8px 0 4px}
+.wrap{max-width:720px;margin:0 auto;padding:12px}
+h1{font-size:22px;margin:10px 0 2px}h2{font-size:16px;margin:0 0 8px}
+.muted{opacity:.7;font-size:13px}
+.box{background:#103a27;border:1px solid #ffffff1f;border-radius:14px;padding:14px;margin:12px 0}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.hidden{display:none!important}
+.tabs{display:flex;gap:4px;background:#0f3323;border:1px solid #ffffff33;border-radius:12px;padding:3px;position:sticky;top:0;z-index:5}
+.tabs button{flex:1;background:transparent;color:#ffffffaa;padding:9px 4px}
+.tabs button.on{background:#2e5f46;color:#fff}
+.stats{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
+@media(min-width:560px){.stats{grid-template-columns:repeat(4,1fr)}}
+.stat{background:#0d2a1c;border-radius:12px;padding:10px}
+.stat .v{font-size:22px;font-weight:800;color:#ffe9a8}.stat .l{font-size:12px;opacity:.7}
+.item{border-top:1px solid #ffffff14;padding:10px 0}
+.item:first-child{border-top:0}
+.name{font-weight:700;font-size:15px}
+.tag{font-size:11px;padding:2px 7px;border-radius:999px;background:#ffffff22;margin-left:4px;vertical-align:1px}
+.tag.on{background:#2e7d4f}.tag.ban{background:#a8322d}.tag.adm{background:#9a6b12}
+.money{color:#ffe9a8;font-weight:700}
+.pos{color:#7dff9b}.neg{color:#ff8a80}
+.ledger{font-size:12px;line-height:1.6;background:#0d2a1c;border-radius:8px;padding:8px;margin-top:8px;max-height:220px;overflow:auto}
+.warn{background:#5a3c0b;border-radius:10px;padding:8px 10px;font-size:13px;margin-top:8px}
+#toast{position:fixed;left:50%;top:14px;transform:translateX(-50%);background:#000c;padding:8px 14px;border-radius:10px;z-index:99;font-size:14px}
+.mem{display:flex;justify-content:space-between;align-items:center;font-size:13px;padding:4px 0}
+</style>
+</head>
+<body>
+<div id="toast" class="hidden"></div>
+<div class="wrap">
+  <h1>时烽德州 · 庄家后台</h1>
+  <div class="muted">只管理游戏筹码：没有真钱，筹码不能购买或兑现。</div>
+
+  <div id="loginBox" class="box hidden">
+    <h2>管理员登录</h2>
+    <label>用户名</label><input id="lu" autocomplete="username" autocapitalize="off">
+    <label>密码</label><input id="lp" type="password" autocomplete="current-password">
+    <button class="pri" id="btnLogin" style="width:100%;margin-top:12px">登录后台</button>
+  </div>
+
+  <div id="main" class="hidden">
+    <div class="row" style="justify-content:space-between;margin:10px 0"><span class="muted">管理员 <b id="who"></b></span><button class="ghost sm" id="btnOut">退出</button></div>
+    <div class="tabs" id="tabs"><button data-t="ov" class="on">概览</button><button data-t="users">玩家</button><button data-t="rooms">房间</button><button data-t="set">设置</button></div>
+
+    <div id="t-ov">
+      <div class="box"><div class="stats" id="stats"></div><div id="storeWarn"></div></div>
+    </div>
+
+    <div id="t-users" class="hidden">
+      <div class="box">
+        <div class="row" style="flex-wrap:nowrap"><input id="q" placeholder="搜索用户名"><button id="btnQ" style="flex:none">搜索</button></div>
+        <div id="users" style="margin-top:8px"></div>
+      </div>
+    </div>
+
+    <div id="t-rooms" class="hidden">
+      <div class="box"><div class="row" style="justify-content:space-between"><h2 style="margin:0">全部房间</h2><button class="ghost sm" onclick="loadRooms()">刷新</button></div><div id="rooms"></div></div>
+    </div>
+
+    <div id="t-set" class="hidden">
+      <div class="box">
+        <h2>筹码规则</h2>
+        <label>每日免费领取数量</label><input id="sDaily" type="number" inputmode="numeric">
+        <label>新账号注册赠送</label><input id="sSignup" type="number" inputmode="numeric">
+        <label>抽水比例（%，0–10，翻牌后才抽，进入庄家账户）</label><input id="sRake" type="number" inputmode="decimal" step="0.5">
+        <button class="pri" id="btnSave" style="width:100%;margin-top:12px">保存设置</button>
+        <div class="muted" style="margin-top:8px">抽水比例从下一手牌开始生效。</div>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const fmt = (n) => Number(n).toLocaleString();
+const t2 = (ms) => ms ? new Date(ms).toLocaleString("zh-CN", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "—";
+let token = localStorage.getItem("sf_admin_token") || "";
+let tab = "ov", timer = null;
+function toast(t) { const el = $("toast"); el.textContent = t; el.classList.remove("hidden"); clearTimeout(el._t); el._t = setTimeout(() => el.classList.add("hidden"), 2500); }
+async function call(method, url, body) {
+  const r = await fetch(url, { method, headers: { "content-type": "application/json", authorization: "Bearer " + token }, body: body ? JSON.stringify(body) : undefined });
+  let d = {}; try { d = await r.json(); } catch (e) {}
+  if (r.status === 401 || r.status === 403) { if (url !== "/api/login") { showLogin(r.status === 403 ? "这个账号不是管理员" : "请重新登录"); } }
+  if (!r.ok) throw new Error(d.error || "出错了");
+  return d;
+}
+function showLogin(msg) { token = ""; localStorage.removeItem("sf_admin_token"); $("main").classList.add("hidden"); $("loginBox").classList.remove("hidden"); if (msg) toast(msg); }
+$("btnLogin").onclick = async () => {
+  const r = await fetch("/api/login", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ username: $("lu").value.trim(), password: $("lp").value }) });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) return toast(d.error || "登录失败");
+  if (!d.user.isAdmin) return toast("这个账号不是管理员");
+  token = d.token; localStorage.setItem("sf_admin_token", token); $("lp").value = ""; start(d.user.username);
+};
+$("lp").onkeydown = (e) => { if (e.key === "Enter") $("btnLogin").click(); };
+$("btnOut").onclick = () => { fetch("/api/logout", { method: "POST", headers: { authorization: "Bearer " + token } }); showLogin("已退出"); };
+$("tabs").querySelectorAll("button").forEach((b) => b.onclick = () => setTab(b.dataset.t));
+function setTab(t) {
+  tab = t;
+  $("tabs").querySelectorAll("button").forEach((x) => x.classList.toggle("on", x.dataset.t === t));
+  for (const x of ["ov", "users", "rooms", "set"]) $("t-" + x).classList.toggle("hidden", x !== t);
+  if (t === "ov") loadStats(); if (t === "users") loadUsers(); if (t === "rooms") loadRooms(); if (t === "set") loadStats();
+}
+async function start(name) {
+  $("loginBox").classList.add("hidden"); $("main").classList.remove("hidden");
+  if (name) $("who").textContent = name;
+  setTab(tab);
+  clearInterval(timer); timer = setInterval(() => { if (tab === "ov") loadStats(); if (tab === "rooms") loadRooms(); }, 10000);
+}
+
+async function loadStats() {
+  const s = await call("GET", "/api/admin/stats");
+  const items = [["在线玩家", s.online], ["房间", s.rooms], ["在座真人", s.seated], ["电脑玩家", s.bots], ["注册玩家", s.users], ["庄家余额", fmt(s.house)], ["桌上筹码", fmt(s.tableChips)], ["抽水比例", s.settings.rakePercent + "%"]];
+  $("stats").innerHTML = items.map(([l, v]) => `<div class="stat"><div class="v">${v}</div><div class="l">${l}</div></div>`).join("");
+  const houseNote = `<div class="muted" style="margin-top:8px">庄家余额 = 抽水收入 − 电脑玩家带入的筹码（电脑玩家离桌时返还），为负数是正常的。</div>`;
+  $("storeWarn").innerHTML = houseNote + (s.storage === "postgres" ? `<div class="muted" style="margin-top:8px">数据存储：Postgres 数据库</div>` : `<div class="warn">⚠️ 当前没有连接数据库（存储：${esc(s.storage)}），服务器重启或重新部署后账号和余额会丢失。请在 Render 设置 DATABASE_URL。</div>`);
+  $("sDaily").value = s.settings.dailyFree; $("sSignup").value = s.settings.signupBonus; $("sRake").value = s.settings.rakePercent;
+}
+
+let usersCache = [];
+async function loadUsers() {
+  usersCache = await call("GET", "/api/admin/users?q=" + encodeURIComponent($("q").value.trim()));
+  $("users").innerHTML = usersCache.length ? usersCache.map((u) => `<div class="item" id="u${u.id}">
+    <div class="row" style="justify-content:space-between">
+      <div><span class="name">${esc(u.username)}</span>${u.isAdmin ? '<span class="tag adm">管理员</span>' : ""}${u.banned ? '<span class="tag ban">已封禁</span>' : ""}${u.online ? '<span class="tag on">在线</span>' : ""}${u.room ? `<span class="tag">房间 ${esc(u.room)}</span>` : ""}</div>
+      <div class="money">${fmt(u.balance)}</div>
+    </div>
+    <div class="muted">ID ${u.id} · 注册 ${t2(u.createdAt)} · 最近登录 ${t2(u.lastLogin)}</div>
+    <div class="row" style="margin-top:6px"><button class="sm" onclick="openAdjust(${u.id})">加/减筹码</button><button class="sm ghost" onclick="openLedger(${u.id})">流水</button>${u.isAdmin ? "" : `<button class="sm ${u.banned ? "" : "red"}" onclick="ban(${u.id}, ${!u.banned})">${u.banned ? "解封" : "封禁"}</button>`}</div>
+    <div class="extra"></div></div>`).join("") : `<div class="muted" style="padding:8px 0">没有找到玩家</div>`;
+}
+$("btnQ").onclick = loadUsers; $("q").onkeydown = (e) => { if (e.key === "Enter") loadUsers(); };
+function extra(id) { return document.querySelector(`#u${id} .extra`); }
+function openAdjust(id) {
+  extra(id).innerHTML = `<div class="box" style="margin:8px 0 0;padding:10px">
+    <label>数量（正数增加，负数扣除）</label><input id="ad${id}" type="number" inputmode="numeric" placeholder="例如 5000 或 -2000">
+    <label>原因（必填，会记入流水）</label><input id="ar${id}" maxlength="100" placeholder="例如：活动奖励">
+    <div class="row" style="margin-top:8px"><button class="pri sm" onclick="adjust(${id})">确认</button><button class="ghost sm" onclick="extra(${id}).innerHTML=''">取消</button></div></div>`;
+}
+async function adjust(id) {
+  const delta = Math.trunc(+$("ad" + id).value), reason = $("ar" + id).value.trim();
+  if (!delta) return toast("请输入数量"); if (!reason) return toast("请填写原因");
+  const u = usersCache.find((x) => x.id === id);
+  if (!confirm(`${delta > 0 ? "给" : "从"} ${u.username} ${delta > 0 ? "增加" : "扣除"} ${fmt(Math.abs(delta))} 筹码？\n原因：${reason}`)) return;
+  try { const d = await call("POST", `/api/admin/users/${id}/adjust`, { delta, reason }); toast(`完成，新余额 ${fmt(d.balance)}`); loadUsers(); } catch (e) { toast(e.message); }
+}
+async function openLedger(id) {
+  const rows = await call("GET", `/api/admin/users/${id}/ledger`);
+  extra(id).innerHTML = `<div class="ledger">${rows.length ? rows.map((r) => `${t2(r.at)} <span class="${r.delta >= 0 ? "pos" : "neg"}">${r.delta >= 0 ? "+" : ""}${fmt(r.delta)}</span> → ${fmt(r.balanceAfter)} · ${esc(r.reason)}${r.actor && r.actor !== "system" ? `（${esc(r.actor)}）` : ""}`).join("<br>") : "暂无记录"}</div>`;
+}
+async function ban(id, banned) {
+  const u = usersCache.find((x) => x.id === id);
+  if (!confirm(banned ? `封禁 ${u.username}？会把他请出房间（桌上筹码返还余额）并让他下线。` : `解封 ${u.username}？`)) return;
+  try { await call("POST", `/api/admin/users/${id}/ban`, { banned }); toast(banned ? "已封禁" : "已解封"); loadUsers(); } catch (e) { toast(e.message); }
+}
+
+async function loadRooms() {
+  const list = await call("GET", "/api/admin/rooms");
+  $("rooms").innerHTML = list.length ? list.map((r) => `<div class="item">
+    <div class="row" style="justify-content:space-between"><div><span class="name" style="color:#e0a82e;letter-spacing:1px">${esc(r.code)}</span><span class="tag">${r.public ? "公开" : "私密"}</span><span class="tag ${r.status === "等待中" ? "" : "on"}">${esc(r.status)}</span></div>
+      <button class="red sm" onclick="closeRoom('${esc(r.code)}')">关闭房间</button></div>
+    <div class="muted">房主 ${esc(r.host)} · 在线 ${r.online} 人 · 盲注 ${r.cfg.sb}/${r.cfg.bb} · 带入 ${fmt(r.cfg.start)}${r.handNo ? ` · 第 ${r.handNo} 手` : ""}</div>
+    ${r.members.map((m) => `<div class="mem"><span>${esc(m.name)}${m.bot ? '<span class="tag">电脑</span>' : ""}${!m.connected ? '<span class="tag">离线</span>' : ""} <span class="money">${fmt(m.chips)}</span></span>${m.bot ? "" : `<button class="ghost sm" onclick="kick('${esc(r.code)}', ${m.userId}, '${esc(m.name)}')">踢出</button>`}</div>`).join("")}
+  </div>`).join("") : `<div class="muted" style="padding:8px 0">现在没有房间</div>`;
+}
+async function closeRoom(code) { if (!confirm(`关闭房间 ${code}？桌上所有筹码会返还到各自余额（进行中的这手作废）。`)) return; try { await call("POST", `/api/admin/rooms/${code}/close`); toast("房间已关闭"); loadRooms(); } catch (e) { toast(e.message); } }
+async function kick(code, userId, name) { if (!confirm(`把 ${name} 移出房间 ${code}？他的筹码会返还到余额。`)) return; try { await call("POST", `/api/admin/rooms/${code}/kick`, { userId }); toast("已移出"); loadRooms(); } catch (e) { toast(e.message); } }
+
+$("btnSave").onclick = async () => {
+  try {
+    const d = await call("POST", "/api/admin/settings", { dailyFree: +$("sDaily").value, signupBonus: +$("sSignup").value, rakePercent: +$("sRake").value });
+    toast(`已保存：每日 ${d.settings.dailyFree}，注册送 ${d.settings.signupBonus}，抽水 ${d.settings.rakePercent}%`);
+  } catch (e) { toast(e.message); }
+};
+
+(async () => {
+  if (!token) return showLogin();
+  try { await call("GET", "/api/admin/stats"); const me = await (await fetch("/api/me", { headers: { authorization: "Bearer " + token } })).json(); start(me.username); } catch (e) { showLogin(); }
+})();
+</script>
+</body>
+</html>

@@ -146,3 +146,16 @@ test("平分底池的零头给庄家左边第一位赢家", () => {
   // 底池 27，A 与 C 平分：C 在庄家左边更近，拿 14；A 拿 13
   assert.deepEqual(g.players.map((p) => p.chips), [1000 - 11 + 13, 995, 1000 - 11 + 14]);
 });
+
+test("抽水：没看到翻牌不抽；没人跟的部分不抽；平分时从主池扣", async () => {
+  // 翻牌前大家弃牌：不抽
+  let g = E.newGame([{ name: "A", bot: false }, { name: "B", bot: false }, { name: "C", bot: false }], { ...cfg, rake: 5 });
+  while (g.stage !== "handover") g = E.act(g, { type: "fold" });
+  assert.equal(g.lastRake, 0);
+  // 翻牌后有人下注没人跟：只按被跟注的部分抽
+  g = E.newGame([{ name: "A", bot: false }, { name: "B", bot: false }], { ...cfg, rake: 10 });
+  g = E.act(g, { type: "call" }); g = E.act(g, { type: "check" }); // 底池 40，进入翻牌
+  g = E.act(g, { type: "raise", to: 500 }); g = E.act(g, { type: "fold" });
+  assert.equal(g.lastRake, 4);
+  assert.equal(g.players.reduce((s, p) => s + p.chips, 0), 1996);
+});

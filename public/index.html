@@ -27,6 +27,7 @@ h1{font-size:24px;margin:14px 0 4px}h2{font-size:17px;margin:0 0 8px}
 .row>*{flex:1 1 auto}
 .grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
 .hidden{display:none!important}
+.bal{font-size:22px;font-weight:800;color:#ffe9a8}.bal b{font-weight:800}
 .code{font-size:34px;letter-spacing:6px;font-weight:800;color:#e0a82e}
 .member{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #ffffff14}
 .member button{padding:4px 10px;font-size:13px}
@@ -98,13 +99,32 @@ h1{font-size:24px;margin:14px 0 4px}h2{font-size:17px;margin:0 0 8px}
 <body>
 <div id="toast" class="hidden"></div>
 
+<!-- 登录 / 注册 -->
+<div id="auth" class="wrap hidden">
+  <h1 style="margin-top:28px">♠ 时烽德州</h1>
+  <div class="muted">和朋友实时对战，最多 9 人一桌。只用游戏筹码，不涉及真钱，筹码不能购买或兑现。</div>
+  <div class="card-box" style="margin-top:18px">
+    <div class="seg" id="authTabs"><button data-m="login" class="on">登录</button><button data-m="register">注册</button></div>
+    <label>用户名</label>
+    <input id="aUser" maxlength="16" autocomplete="username" autocapitalize="off" placeholder="2–16 位，中文、字母或数字">
+    <label>密码</label>
+    <input id="aPass" type="password" maxlength="72" autocomplete="current-password" placeholder="至少 6 位">
+    <div id="aPass2Box" class="hidden"><label>确认密码</label><input id="aPass2" type="password" maxlength="72" autocomplete="new-password" placeholder="再输入一次"></div>
+    <button class="pri" id="btnAuth" style="width:100%;margin-top:14px">登录</button>
+    <div class="muted" id="authHint" style="margin-top:10px">还没有账号？点上面的“注册”，新账号赠送游戏筹码，每天还能免费领取。</div>
+  </div>
+</div>
+
 <!-- 首页 -->
 <div id="home" class="wrap hidden">
   <h1>♠ 时烽德州</h1>
   <div class="muted">和朋友实时对战，最多 9 人一桌。只用游戏筹码，不涉及真钱。</div>
-  <div class="card-box">
-    <label>你的昵称</label>
-    <input id="name" maxlength="12" placeholder="例如：Laura">
+  <div class="card-box" id="acct">
+    <div class="row" style="flex-wrap:nowrap;justify-content:space-between">
+      <div style="flex:1;min-width:0"><div class="muted">👤 <span id="uName"></span></div><div class="bal">余额 <b id="uBal">0</b></div></div>
+      <button class="ghost" id="btnLogout" style="flex:none;padding:6px 10px;font-size:13px">退出</button>
+    </div>
+    <button class="pri" id="btnClaim" style="width:100%;margin-top:10px">领取每日免费筹码</button>
   </div>
   <div class="card-box" id="roomsBox">
     <div class="row" style="justify-content:space-between;flex-wrap:nowrap"><h2 style="flex:none;margin:0">公开房间</h2><button class="ghost" id="btnRefresh" style="flex:none;padding:5px 12px;font-size:13px">刷新</button></div>
@@ -117,7 +137,7 @@ h1{font-size:24px;margin:14px 0 4px}h2{font-size:17px;margin:0 0 8px}
   <div class="card-box">
     <h2>创建房间</h2>
     <div class="grid4">
-      <div><label>起始筹码</label><input id="cStart" type="number" inputmode="numeric" value="1000"></div>
+      <div><label>带入筹码</label><input id="cStart" type="number" inputmode="numeric" value="1000"></div>
       <div><label>小盲</label><input id="cSb" type="number" inputmode="numeric" value="10"></div>
       <div><label>大盲</label><input id="cBb" type="number" inputmode="numeric" value="20"></div>
       <div><label>思考秒数</label><input id="cTimer" type="number" inputmode="numeric" value="30"></div>
@@ -171,26 +191,81 @@ const STAGE = { preflop: "翻牌前", flop: "翻牌", turn: "转牌", river: "�
 const P = { 0: [50, 91], 1: [18, 82], 2: [12, 59], 3: [12, 35], 4: [28, 9], 5: [72, 9], 6: [88, 35], 7: [88, 59], 8: [82, 82], T: [50, 8] };
 const LAYOUT = { 1: [0], 2: [0, "T"], 3: [0, 3, 6], 4: [0, 2, "T", 7], 5: [0, 2, 4, 5, 7], 6: [0, 1, 3, "T", 6, 8], 7: [0, 1, 3, 4, 5, 6, 8], 8: [0, 1, 2, 3, "T", 6, 7, 8], 9: [0, 1, 2, 3, 4, 5, 6, 7, 8] };
 
-const socket = io();
+let authToken = localStorage.getItem("sf_token") || "";
+const socket = io({ autoConnect: false, auth: (cb) => cb({ token: authToken }) });
+let me = null;
 let S = null, code = null, token = null, offset = 0, raiseTo = 0, raiseOpen = false, lastTurnKey = "";
 const params = new URLSearchParams(location.search);
-$("name").value = localStorage.getItem("poker_name") || "";
 if (params.get("room")) $("joinCode").value = params.get("room").toUpperCase();
 
 function toast(t) { const el = $("toast"); el.textContent = t; el.classList.remove("hidden"); clearTimeout(el._t); el._t = setTimeout(() => el.classList.add("hidden"), 2500); }
 let watching = false;
 function show(id) {
-  for (const x of ["home", "lobby", "game"]) $(x).classList.toggle("hidden", x !== id);
-  if (id === "home" && !watching) { watching = true; socket.emit("watchRooms", renderRooms); }
+  for (const x of ["auth", "home", "lobby", "game"]) $(x).classList.toggle("hidden", x !== id);
+  if (id === "home" && !watching && socket.connected) { watching = true; socket.emit("watchRooms", renderRooms); }
   else if (id !== "home" && watching) { watching = false; socket.emit("unwatchRooms"); }
 }
 function link() { return location.origin + "/?room=" + code; }
-function setRoom(c, t) {
-  code = c; token = t;
-  if (t) localStorage.setItem("poker_tok_" + c, t);
+function setRoom(c) {
+  code = c; localStorage.setItem("sf_room", c);
   history.replaceState(null, "", "/?room=" + c);
 }
-function needName() { const n = $("name").value.trim(); if (!n) { toast("请先填写昵称"); $("name").focus(); return null; } localStorage.setItem("poker_name", n); return n; }
+function clearRoom() { localStorage.removeItem("sf_room"); code = S = null; history.replaceState(null, "", "/"); }
+
+// ---------- 账号 ----------
+let authMode = "login";
+$("authTabs").querySelectorAll("button").forEach((b) => b.onclick = () => {
+  authMode = b.dataset.m;
+  $("authTabs").querySelectorAll("button").forEach((x) => x.classList.toggle("on", x === b));
+  $("aPass2Box").classList.toggle("hidden", authMode !== "register");
+  $("btnAuth").textContent = authMode === "login" ? "登录" : "注册并登录";
+  $("authHint").textContent = authMode === "login" ? "还没有账号？点上面的“注册”，新账号赠送游戏筹码，每天还能免费领取。" : "用户名注册后不能修改，会显示在牌桌上。请牢记密码。";
+  $("aPass").autocomplete = authMode === "login" ? "current-password" : "new-password";
+});
+async function post(url, body) {
+  const r = await fetch(url, { method: "POST", headers: { "content-type": "application/json", ...(authToken ? { authorization: "Bearer " + authToken } : {}) }, body: JSON.stringify(body || {}) });
+  let d = {}; try { d = await r.json(); } catch (e) {}
+  return { ok: r.ok, status: r.status, d };
+}
+async function doAuth() {
+  const username = $("aUser").value.trim(), password = $("aPass").value;
+  if (!username || !password) return toast("请填写用户名和密码");
+  if (authMode === "register" && password !== $("aPass2").value) return toast("两次密码不一致");
+  $("btnAuth").disabled = true;
+  const r = await post(authMode === "login" ? "/api/login" : "/api/register", { username, password });
+  $("btnAuth").disabled = false;
+  if (!r.ok) return toast(r.d.error || "出错了，请重试");
+  authToken = r.d.token; localStorage.setItem("sf_token", authToken);
+  $("aPass").value = $("aPass2").value = "";
+  if (authMode === "register") toast(`注册成功，送你 ${r.d.user.balance} 筹码`);
+  setMe(r.d.user); socket.connect();
+}
+$("btnAuth").onclick = doAuth;
+$("aPass").onkeydown = $("aPass2").onkeydown = (e) => { if (e.key === "Enter") doAuth(); };
+function setMe(u) {
+  me = u; $("uName").textContent = u.username; $("uBal").textContent = u.balance.toLocaleString();
+  const b = $("btnClaim"); b.disabled = !u.canClaim;
+  b.textContent = u.canClaim ? `领取每日免费筹码 +${u.dailyFree}` : "今天已领取，明天再来";
+}
+$("btnClaim").onclick = async () => {
+  const r = await post("/api/claim");
+  if (!r.ok) return toast(r.d.error || "领取失败");
+  toast(`已领取 ${r.d.amount} 筹码`); setMe({ ...me, balance: r.d.balance, canClaim: false });
+};
+function logout() {
+  post("/api/logout"); authToken = ""; localStorage.removeItem("sf_token"); clearRoom(); me = null;
+  socket.disconnect(); show("auth");
+}
+$("btnLogout").onclick = () => { if (confirm("确定退出登录吗？")) logout(); };
+socket.on("me", setMe);
+socket.on("connect_error", (e) => { if (e.message === "NEED_LOGIN") { authToken = ""; localStorage.removeItem("sf_token"); show("auth"); toast("请先登录"); } });
+socket.on("kicked", (reason) => { toast(reason || "你已离开房间"); clearRoom(); show("home"); refreshMe(); });
+async function refreshMe() {
+  if (!authToken) return false;
+  const r = await fetch("/api/me", { headers: { authorization: "Bearer " + authToken } });
+  if (!r.ok) return false;
+  setMe(await r.json()); return true;
+}
 
 let createPublic = true;
 $("cVis").querySelectorAll("button").forEach((btn) => btn.onclick = () => {
@@ -207,12 +282,14 @@ function renderRooms(list) {
   el.innerHTML = roomsCache.map((r) => {
     const pill = r.full ? `<span class="pill full">已满</span>` : r.status === "游戏中" ? `<span class="pill play">游戏中</span>` : `<span class="pill wait">等待中</span>`;
     return `<div class="rm${r.full ? " full" : ""}" data-code="${esc(r.code)}"><div class="rc">${esc(r.code)}</div>
-      <div class="ri"><div class="rh">房主 ${esc(r.host)}</div><div class="rd">盲注 ${r.sb}/${r.bb} · 起始 ${r.start}</div></div>
+      <div class="ri"><div class="rh">房主 ${esc(r.host)}</div><div class="rd">盲注 ${r.sb}/${r.bb} · 带入 ${r.start}</div></div>
       <div class="rs">${pill}<div>${r.seats}/${r.maxSeats} 人</div></div></div>`;
   }).join("");
   el.querySelectorAll(".rm").forEach((row) => row.onclick = () => {
     const r = roomsCache.find((x) => x.code === row.dataset.code);
     if (!r) return; if (r.full) return toast("房间已满");
+    if (me && me.balance < r.start) return toast(`余额不足：这个房间带入 ${r.start}`);
+    if (!confirm(`从余额带入 ${r.start} 筹码，加入房间 ${r.code}？`)) return;
     join(r.code, false);
   });
 }
@@ -220,16 +297,15 @@ socket.on("rooms", renderRooms);
 $("btnRefresh").onclick = () => socket.emit("listRooms", (l) => { renderRooms(l); toast("已刷新"); });
 
 $("btnCreate").onclick = () => {
-  const name = needName(); if (!name) return;
-  socket.emit("create", { name, cfg: { start: $("cStart").value, sb: $("cSb").value, bb: $("cBb").value, timer: $("cTimer").value, public: createPublic } }, (r) => { if (r.ok) setRoom(r.code, r.token); else toast(r.error); });
+  const start = +$("cStart").value || 0;
+  if (me && start > me.balance) return toast(`余额不足：带入 ${start}，你只有 ${me.balance}`);
+  socket.emit("create", { cfg: { start: $("cStart").value, sb: $("cSb").value, bb: $("cBb").value, timer: $("cTimer").value, public: createPublic } }, (r) => { if (r.ok) setRoom(r.code); else toast(r.error); });
 };
 function join(c, auto) {
   c = (c || "").toUpperCase().trim(); if (!c) return toast("请输入房间码");
-  const t = localStorage.getItem("poker_tok_" + c);
-  const name = auto && t ? (localStorage.getItem("poker_name") || "玩家") : needName(); if (!name) return;
-  socket.emit("join", { code: c, name, token: t }, (r) => {
-    if (r.ok) setRoom(r.code, r.token);
-    else { toast(r.error); if (auto) { localStorage.removeItem("poker_tok_" + c); show("home"); } }
+  socket.emit("join", { code: c }, (r) => {
+    if (r.ok) setRoom(r.code);
+    else { toast(r.error); if (auto) { clearRoom(); show("home"); } }
   });
 }
 $("btnJoin").onclick = () => join($("joinCode").value, false);
@@ -242,14 +318,14 @@ async function share() {
 $("btnShare").onclick = share; $("btnInvite").onclick = share;
 $("btnBot").onclick = $("btnBot2").onclick = () => socket.emit("addBot");
 $("btnStart").onclick = () => socket.emit("start");
-const leave = () => { if (!confirm("确定离开房间吗？")) return; socket.emit("leave"); localStorage.removeItem("poker_tok_" + code); code = token = S = null; history.replaceState(null, "", "/"); show("home"); };
+const leave = () => { if (!confirm("确定离开房间吗？桌上剩余的筹码会返还到你的余额（正在进行的这手牌会自动弃牌，结束后返还）。")) return; socket.emit("leave"); clearRoom(); show("home"); setTimeout(refreshMe, 800); };
 $("btnLeave1").onclick = $("btnLeave2").onclick = leave;
 $("btnSit").onclick = () => { const me = S && S.game && S.game.players[S.you]; socket.emit("sitOut", !(me && me.sitOut)); };
 
 socket.on("connect", () => {
   if (watching) { watching = false; if (!code) show("home"); }
   const c = (code || params.get("room") || "").toUpperCase();
-  if (c && localStorage.getItem("poker_tok_" + c)) join(c, true); // 刷新/断线后回到原座位
+  if (c && localStorage.getItem("sf_room") === c) join(c, true); // 刷新/断线后回到原座位
   else if (!code) show("home");
 });
 socket.on("toast", toast);
@@ -267,7 +343,7 @@ function renderLobby() {
   $("lMembers").innerHTML = S.members.map((m) => `<div class="member"><span>${esc(m.name)}${m.host ? '<span class="tag">房主</span>' : ""}${m.bot ? '<span class="tag">电脑</span>' : ""}${!m.connected ? '<span class="tag">离线</span>' : ""}${S.members[S.you] && S.members.indexOf(m) === S.you ? '<span class="tag">我</span>' : ""}</span>${S.isHost && m.bot ? `<button class="ghost" onclick="socket.emit('removeBot',${m.i})">移除</button>` : ""}</div>`).join("");
   $("hostCtl").classList.toggle("hidden", !S.isHost); $("waitHost").classList.toggle("hidden", S.isHost);
   $("btnStart").disabled = S.members.length < 2; $("btnBot").disabled = S.members.length >= 9;
-  const c = S.cfg; $("lCfg").textContent = `起始筹码 ${c.start} · 盲注 ${c.sb}/${c.bb} · 每次思考 ${c.timer} 秒（超时自动过牌或弃牌）· ${c.public ? "公开房间（大厅可见）" : "私密房间（仅凭房间码加入）"}`;
+  const c = S.cfg; $("lCfg").textContent = `带入 ${c.start} · 盲注 ${c.sb}/${c.bb} · 每次思考 ${c.timer} 秒（超时自动过牌或弃牌）· ${c.public ? "公开房间（大厅可见）" : "私密房间（仅凭房间码加入）"}`;
 }
 
 function renderGame() {
@@ -316,22 +392,23 @@ function renderGame() {
 
 function renderActions() {
   const g = S.game, L = g.legal, box = $("actions");
+  const rebuyBtn = g.canRebuy ? `<button class="blue" style="width:100%;margin-top:8px" onclick="rebuy()">从余额补充筹码（带入 ${S.cfg.start}）</button>` : "";
   if (g.stage === "gameover") {
     const w = g.players.filter((p) => p.chips > 0).sort((a, b) => b.chips - a.chips)[0];
-    box.innerHTML = `<div id="status">🏆 游戏结束${w ? `，${esc(w.name)} 赢得所有筹码！` : ""}</div>` + (S.isHost ? `<button class="pri" style="width:100%" onclick="socket.emit('restart')">重新开始</button>` : `<div class="muted" style="text-align:center">等待房主重新开始…</div>`);
+    box.innerHTML = `<div id="status">🏆 ${w ? `${esc(w.name)} 赢下了桌上所有筹码` : "本局结束"}<br><span class="muted">至少两人有筹码才能继续：可以补充筹码，或请房主添加电脑玩家</span></div>` + rebuyBtn;
     return;
   }
   if (g.stage === "handover") {
     const w = g.winners.map((i) => g.players[i]).map((p) => `${esc(p.name)} +${p.won}${p.handName ? `（${esc(p.handName)}）` : ""}`).join("，");
     const sec = S.nextAt ? Math.max(0, Math.ceil((S.nextAt - Date.now() - offset) / 1000)) : null;
     const busted = S.you >= 0 && g.players[S.you] && g.players[S.you].chips <= 0;
-    box.innerHTML = `<div id="status">赢家：${w}${busted ? "<br><span class='muted'>你的筹码已输光，可以继续观战</span>" : ""}</div>` + (S.isHost ? `<button class="pri" style="width:100%" onclick="socket.emit('nextHand')">下一手${sec != null ? `（${sec} 秒后自动）` : ""}</button>` : `<div class="muted" style="text-align:center">${sec != null ? `${sec} 秒后自动开始下一手` : "等待房主开始下一手"}</div>`);
+    box.innerHTML = `<div id="status">赢家：${w}${busted ? "<br><span class='muted'>你的筹码已输光，可以补充筹码或继续观战</span>" : ""}${g.lastRake ? `<br><span class='muted'>本手抽水 ${g.lastRake}</span>` : ""}</div>` + rebuyBtn + (S.isHost ? `<button class="pri" style="width:100%" onclick="socket.emit('nextHand')">下一手${sec != null ? `（${sec} 秒后自动）` : ""}</button>` : `<div class="muted" style="text-align:center">${sec != null ? `${sec} 秒后自动开始下一手` : "等待房主开始下一手"}</div>`);
     return;
   }
   if (!L) {
     raiseOpen = false;
     const cp = g.players[g.current];
-    box.innerHTML = `<div id="status">${cp ? `等待 ${esc(cp.name)} 操作…` : ""}</div>`;
+    box.innerHTML = `<div id="status">${cp ? `等待 ${esc(cp.name)} 操作…` : ""}</div>` + (g.canRebuy ? `<button class="blue" style="width:100%" onclick="rebuy()">从余额补充筹码（带入 ${S.cfg.start}），下一手加入</button>` : "");
     return;
   }
   const key = g.handNo + "-" + g.stage + "-" + g.current + "-" + g.currentBet;
@@ -355,6 +432,10 @@ function renderActions() {
   }
   box.innerHTML = h;
 }
+function rebuy() {
+  if (me && me.balance < S.cfg.start) return toast(`余额不足：需要 ${S.cfg.start}`);
+  socket.emit("rebuy", (r) => { if (r && r.ok) toast("已补充筹码"); else toast((r && r.error) || "现在不能补充"); });
+}
 function setR(v) { const L = S.game.legal; raiseTo = Math.min(L.raiseMax, Math.max(L.raiseMin, v)); renderActions(); }
 function toggleRaise() { raiseOpen = !raiseOpen; renderActions(); }
 function act(type) {
@@ -369,8 +450,13 @@ setInterval(() => {
   const s = $("secs"); if (s && S.deadline) s.textContent = Math.max(0, Math.ceil((S.deadline - Date.now() - offset) / 1000));
   if (S.game && S.game.stage === "handover" && S.nextAt) { const g = S.game; if (!raiseOpen) renderActions(); }
 }, 500);
-if (!params.get("room")) show("home");
-else if (!localStorage.getItem("poker_tok_" + params.get("room").toUpperCase())) show("home");
+// 启动：有登录令牌就验证并连接，否则显示登录页
+(async () => {
+  if (await refreshMe()) {
+    if (!(params.get("room") && localStorage.getItem("sf_room") === params.get("room").toUpperCase())) show("home");
+    socket.connect();
+  } else { authToken = ""; localStorage.removeItem("sf_token"); show("auth"); }
+})();
 </script>
 </body>
 </html>

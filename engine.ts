@@ -1,7 +1,7 @@
 export type Stage = "setup" | "preflop" | "flop" | "turn" | "river" | "handover" | "gameover";
 export interface Player { id: number; name: string; bot: boolean; sitOut: boolean; chips: number; bet: number; total: number; hole: number[]; folded: boolean; allIn: boolean; out: boolean; acted: boolean; last: string; handName: string; won: number; }
-export interface Game { players: Player[]; deck: number[]; board: number[]; dealer: number; sb: number; bb: number; stage: Stage; current: number; currentBet: number; minRaise: number; log: string[]; handNo: number; showdown: boolean; winners: number[]; sbAmt: number; bbAmt: number; startChips: number; }
-export interface Config { start: number; sb: number; bb: number; }
+export interface Game { players: Player[]; deck: number[]; board: number[]; dealer: number; sb: number; bb: number; stage: Stage; current: number; currentBet: number; minRaise: number; log: string[]; handNo: number; showdown: boolean; winners: number[]; sbAmt: number; bbAmt: number; startChips: number; rakePct: number; lastRake: number; }
+export interface Config { start: number; sb: number; bb: number; rake?: number; }
 const RN = ["", "", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K", "A"];
 const SU = ["♠", "♥", "♦", "♣"];
 export const rankOf = (c: number) => (c % 13) + 2;
@@ -61,7 +61,7 @@ export function mkPlayer(id: number, name: string, bot: boolean, chips: number):
 }
 export function newGame(seats: { name: string; bot: boolean }[], cfg: Config): Game {
   const players = seats.map((s, i) => mkPlayer(i, s.name, s.bot, cfg.start));
-  const g: Game = { players, deck: [], board: [], dealer: Math.floor(Math.random() * players.length), sb: -1, bb: -1, stage: "handover", current: -1, currentBet: 0, minRaise: cfg.bb, log: [], handNo: 0, showdown: false, winners: [], sbAmt: cfg.sb, bbAmt: cfg.bb, startChips: cfg.start };
+  const g: Game = { players, deck: [], board: [], dealer: Math.floor(Math.random() * players.length), sb: -1, bb: -1, stage: "handover", current: -1, currentBet: 0, minRaise: cfg.bb, log: [], handNo: 0, showdown: false, winners: [], sbAmt: cfg.sb, bbAmt: cfg.bb, startChips: cfg.start, rakePct: cfg.rake || 0, lastRake: 0 };
   return startHand(g, true);
 }
 export function addPlayer(g: Game, name: string, bot: boolean): Game { g.players.push(mkPlayer(g.players.length, name, bot, g.startChips)); return g; }
@@ -172,14 +172,22 @@ function finish(g: Game, showdown: boolean): Game {
   g.current = -1; g.showdown = showdown; g.stage = "handover";
   const total = pot(g);
   const winners = new Set<number>();
+  // 抽水（只是游戏筹码）：翻牌后才抽，不抽没人跟的部分
+  const tots = g.players.map((p) => p.total).sort((a, b) => b - a);
+  const uncalled = (tots[0] || 0) - (tots[1] || 0);
+  const rake = g.rakePct > 0 && g.board.length >= 3 ? Math.floor(((total - uncalled) * g.rakePct) / 100) : 0;
+  g.lastRake = rake;
+  if (rake > 0) g.log = [...g.log, `抽水 ${rake}`].slice(-40);
   if (!showdown) {
     const w = g.players.find((p) => !p.out && !p.folded) as Player;
-    w.chips += total; w.won = total; winners.add(w.id);
-    g.log = [...g.log, `${w.name} 赢得 ${total}（其他人弃牌）`].slice(-40);
+    w.chips += total - rake; w.won = total - rake; winners.add(w.id);
+    g.log = [...g.log, `${w.name} 赢得 ${total - rake}（其他人弃牌）`].slice(-40);
   } else {
     const score: Record<number, number> = {};
     g.players.forEach((p) => { if (!p.out && !p.folded) { score[p.id] = best7([...p.hole, ...g.board]); p.handName = scoreName(score[p.id]); } });
     const ps = pots(g.players);
+    let left = rake;
+    for (const pt of ps) { if (left <= 0) break; if (pt.eligible.length < 2) continue; const t = Math.min(left, pt.amount); pt.amount -= t; left -= t; }
     ps.forEach((pt, idx) => {
       const best = Math.max(...pt.eligible.map((id) => score[id]));
       const ws = pt.eligible.filter((id) => score[id] === best);
