@@ -54,7 +54,26 @@ test("页面带自动转与声音：原创合成音乐，没有外部音频文�
     for (const f of ["/sound.js", "/mj-auto.js", "/mahjong.js"]) { assert.match(html, new RegExp(f.replace(".", "\\."))); assert.equal((await fetch(ctx.url + f)).status, 200); }
     assert.match(html, /id="mjAutoBtn"/); assert.match(html, /class="sndgrp"/);
     const snd = await (await fetch(ctx.url + "/sound.js")).text();
-    assert.match(snd, /AudioContext/); assert.doesNotMatch(snd, /\.(mp3|ogg|wav|m4a)\b|https?:\/\//i);
+    assert.match(snd, /AudioContext/); assert.doesNotMatch(snd, /https?:\/\//i, "不引用任何外部音频");
     assert.match(snd, /pointerdown/, "第一次点击后才启动音频");
+  } finally { await ctx.close(); }
+});
+
+test("配音文件都在 public/voice/ 里并能正常访问", async () => {
+  const ctx = await boot();
+  try {
+    const snd = await (await fetch(ctx.url + "/sound.js")).text();
+    const want = ["hall_welcome", "pk_turn", "pk_check", "pk_call", "pk_raise", "pk_allin", "pk_fold", "pk_deal", "pk_flop", "pk_turncard", "pk_river", "pk_youwin", "pk_showdown",
+      "mj_start", "mj_hu", "mj_combo", "mj_c2", "mj_c3", "mj_c4", "mj_c5", "mj_c6", "mj_c10", "mj_free", "mj_big", "mj_super", "mj_nochips"];
+    let total = 0;
+    for (const id of want) {
+      assert.match(snd, new RegExp(`\\b${id}: "`), "sound.js 里有 " + id);
+      const r = await fetch(`${ctx.url}/voice/${id}.mp3`);
+      assert.equal(r.status, 200, id); assert.match(r.headers.get("content-type"), /audio\/mpeg/);
+      const b = Buffer.from(await r.arrayBuffer()); total += b.length;
+      assert.ok(b.length > 1000 && b.length < 20000, `${id} 大小 ${b.length}`);
+      assert.ok(b[0] === 0xff || b.slice(0, 3).toString() === "ID3", id + " 是 mp3");
+    }
+    assert.ok(total < 200000, "全部配音加起来很小：" + total);
   } finally { await ctx.close(); }
 });

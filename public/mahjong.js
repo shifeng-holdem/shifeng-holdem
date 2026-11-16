@@ -76,6 +76,7 @@
       if (!st.wins.length) break;
       const cells = st.wins.flatMap((w) => w.cells);
       drawGrid(st.grid, { win: cells }); snd("cascade", st.mult);
+      snd("voice", k === 0 ? "mj_hu" : ({ 2: "mj_c2", 3: "mj_c3", 4: "mj_c4", 5: "mj_c5", 6: "mj_c6", 10: "mj_c10" })[st.mult] || "mj_combo");
       const v = Math.round((betAmt * st.units) / 100); won += v;
       setWin(carry + won, st.mult > 1 ? `连消 x${st.mult}` : "赢得", st.mult >= 5);
       await sleep(820);
@@ -101,21 +102,21 @@
   // 播放一局（一次请求 /api/mahjong/spin）；返回 { ok, win, balance, error }
   async function spinOnce() {
     const b = bet();
-    if (!me || me.balance < b) { updateNoChips(); toast("余额不足，请联系客服获取游戏币"); return { ok: false, error: "NO_CHIPS" }; }
-    setBusy(true); localStorage.setItem("mj_bet", b); snd("spin");
+    if (!me || me.balance < b) { updateNoChips(); snd("voice", "mj_nochips"); toast("余额不足，请联系客服获取游戏币"); return { ok: false, error: "NO_CHIPS" }; }
+    setBusy(true); localStorage.setItem("mj_bet", b); snd("spin"); if (!auto || auto.done <= 1) snd("voice", "mj_start");
     const before = me.balance; setBal(before - b); setWin(0, "转动中…");
     let r;
     try {
       const resp = await fetch("/api/mahjong/spin", { method: "POST", headers: { "content-type": "application/json", authorization: "Bearer " + authToken }, body: JSON.stringify({ bet: b }) });
       r = await resp.json().catch(() => ({}));
-      if (!resp.ok) { setBal(before); setBusy(false); setWin(0, ""); if (r.code === "NO_CHIPS") { me.balance = Math.min(me.balance, b - 1); updateNoChips(); } toast(r.error || "出错了，请重试"); return { ok: false, error: r.code || "HTTP_" + resp.status }; }
+      if (!resp.ok) { setBal(before); setBusy(false); setWin(0, ""); if (r.code === "NO_CHIPS") { me.balance = Math.min(me.balance, b - 1); updateNoChips(); snd("voice", "mj_nochips"); } toast(r.error || "出错了，请重试"); return { ok: false, error: r.code || "HTTP_" + resp.status }; }
     } catch (e) { setBal(before); setBusy(false); toast("网络不稳定，请重试"); return { ok: false, error: "NETWORK" }; }
     try {
       const baseMults = cfg ? cfg.baseMults : [1, 2, 3, 5], freeMults = cfg ? cfg.freeMults : [2, 4, 6, 10];
       let total = await playSteps(r.base.steps, baseMults, false, b, 0);
       setBal(before - b + total);
       if (r.freeAwarded) {
-        await sleep(400); snd("freeSpins");
+        await sleep(400); snd("freeSpins"); snd("voice", "mj_free");
         await splash(`<div class="t">🀄 集齐 ${r.base.scatters} 个「胡」</div><div class="muted" style="margin:8px 0">恭喜获得免费游戏</div><div class="n">${r.freeAwarded} 次</div><div class="muted">连消倍数 x2 → x4 → x6 → x10</div>`, 2200);
         let totalFree = r.freeAwarded - r.free.reduce((a, f) => a + f.extra, 0);
         $("mjFree").classList.remove("hidden");
@@ -133,7 +134,7 @@
       setMults(baseMults, 0, false);
       const x = r.win / b;
       setWin(r.win, r.win ? (x >= 20 ? "🎉 超级大赢" : x >= 8 ? "大赢" : "本局赢得") : (auto ? "未中奖" : "未中奖，再来一次"), x >= 8);
-      if (x >= 8) snd("bigWin"); else if (r.win > 0) snd("mjWin");
+      if (x >= 8) { snd("bigWin"); snd("voice", x >= 20 ? "mj_super" : "mj_big"); } else if (r.win > 0) snd("mjWin");
     } finally {
       me.balance = r.balance; setBal(r.balance); $("uBal").textContent = $("uBal2").textContent = fmt(r.balance);
       setBusy(false);

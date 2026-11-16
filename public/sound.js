@@ -1,10 +1,10 @@
 // 时烽音效与背景音乐：全部用 Web Audio API 现场合成（原创五声音阶旋律，没有任何外部音频文件）
 // iOS 安全：第一次点击屏幕后才创建/恢复音频；开关记在 localStorage。
 (() => {
-  const LS = { music: "sf_music", sfx: "sf_sfx" };
-  const st = { music: localStorage.getItem(LS.music) !== "0", sfx: localStorage.getItem(LS.sfx) !== "0", area: null, unlocked: false };
-  let ctx = null, master, musicBus, sfxBus, timer = null, nextT = 0, step = 0, song = null;
-  const VOL = { music: 0.16, sfx: 0.42 };
+  const LS = { music: "sf_music", sfx: "sf_sfx", voice: "sf_voice" };
+  const st = { music: localStorage.getItem(LS.music) !== "0", sfx: localStorage.getItem(LS.sfx) !== "0", voice: localStorage.getItem(LS.voice) !== "0", area: null, unlocked: false };
+  let ctx = null, master, musicBus, sfxBus, voiceBus, timer = null, nextT = 0, step = 0, song = null;
+  const VOL = { music: 0.16, sfx: 0.42, voice: 0.9, duck: 0.3 };
 
   function ensure() {
     if (ctx) return ctx;
@@ -18,6 +18,7 @@
     musicBus.connect(d1); d1.connect(fb1); fb1.connect(d1); musicBus.connect(d2); d2.connect(fb2); fb2.connect(d2);
     d1.connect(lp); d2.connect(lp); lp.connect(wet); wet.connect(master);
     sfxBus = ctx.createGain(); sfxBus.gain.value = st.sfx ? VOL.sfx : 0; sfxBus.connect(master);
+    voiceBus = ctx.createGain(); voiceBus.gain.value = VOL.voice; voiceBus.connect(ctx.destination);
     return ctx;
   }
   const hz = (midi) => 440 * Math.pow(2, (midi - 69) / 12);
@@ -118,22 +119,67 @@
     freeSpins() { if (!ok()) return; const t = now(); for (let k = 0; k < 3; k++) { tone(sfxBus, 520, t + k * 0.18, 0.5, { type: "triangle", vol: 0.12 }); } [0, 4, 7, 12, 16, 19, 24].forEach((p, k) => pluck(sfxBus, 64 + p, t + 0.5 + k * 0.07, 1.4, 0.3)); noise(sfxBus, t + 0.5, 1.2, { freq: 6000, q: 3, vol: 0.1, sweep: 9000 }); },
   };
 
+  // ---------- 配音（public/voice/*.mp3，普通话女声，离线生成的静态文件） ----------
+  const LINES = {
+    hall_welcome: "欢迎来到时烽", pk_turn: "轮到你了", pk_check: "过牌", pk_call: "跟注", pk_raise: "加注", pk_allin: "全下", pk_fold: "弃牌",
+    pk_deal: "发牌", pk_flop: "翻牌", pk_turncard: "转牌", pk_river: "河牌", pk_youwin: "你赢了", pk_showdown: "摊牌",
+    mj_start: "开始", mj_hu: "胡了", mj_combo: "连消", mj_c2: "二连消", mj_c3: "三连消", mj_c4: "四连消", mj_c5: "五连消", mj_c6: "六连消", mj_c10: "十连消",
+    mj_free: "免费游戏", mj_big: "大奖", mj_super: "超级大奖", mj_nochips: "余额不足",
+  };
+  // 优先级：高的可以打断低的；同时最多排队 1 句，排队超过 1.5 秒就丢掉，避免越积越多
+  const PRIO = { hall_welcome: 3, pk_turn: 4, pk_youwin: 5, pk_showdown: 3, mj_free: 5, mj_big: 5, mj_super: 6, mj_nochips: 4, mj_hu: 2, mj_start: 1 };
+  const prio = (id) => PRIO[id] || 2;
+  const bufs = new Map(); let cur = null, queued = null, pendingWelcome = false;
+  function loadVoice(id) {
+    if (!ctx || !LINES[id]) return Promise.resolve(null);
+    if (!bufs.has(id)) bufs.set(id, fetch(`/voice/${id}.mp3`).then((r) => { if (!r.ok) throw new Error("404"); return r.arrayBuffer(); })
+      .then((ab) => new Promise((res, rej) => ctx.decodeAudioData(ab, res, rej))).catch(() => null));
+    return bufs.get(id);
+  }
+  function preload(area) { if (!ctx) return; Object.keys(LINES).filter((k) => (area === "mj" ? k.startsWith("mj_") : area === "poker" ? k.startsWith("pk_") : k.startsWith("hall_"))).forEach(loadVoice); }
+  function duck(on) { if (ctx) musicBus.gain.setTargetAtTime(st.music ? VOL.music * (on ? VOL.duck : 1) : 0, ctx.currentTime, on ? 0.05 : 0.25); }
+  function speakFallback(id) { // 音频文件加载失败时才用浏览器朗读
+    try { const sy = window.speechSynthesis; if (!sy) return; sy.cancel(); const u = new SpeechSynthesisUtterance(LINES[id]); u.lang = "zh-CN"; u.rate = 1.1; u.volume = 0.9; sy.speak(u); } catch (e) {}
+  }
+  async function playVoice(id) {
+    const b = await loadVoice(id);
+    if (!st.voice) return;
+    if (!b) { speakFallback(id); return; }
+    const src = ctx.createBufferSource(); src.buffer = b; src.connect(voiceBus);
+    const me = { id, src, p: prio(id) }; cur = me; duck(true);
+    src.onended = () => { if (cur !== me) return; cur = null; const q = queued; queued = null; if (q && Date.now() - q.at < 1500) playVoice(q.id); else duck(false); };
+    src.start();
+  }
+  function voice(id) {
+    if (!LINES[id] || !st.voice) return;
+    if (!st.unlocked || !ctx) { if (id === "hall_welcome") pendingWelcome = true; return; }
+    const p = prio(id);
+    if (cur) {
+      if (p > cur.p) { const c = cur; cur = null; try { c.src.onended = null; c.src.stop(); } catch (e) {} queued = null; return playVoice(id); }
+      if (!queued || p >= prio(queued.id)) queued = { id, at: Date.now() }; // 只留最新/最重要的一句
+      return;
+    }
+    playVoice(id);
+  }
+
   // ---------- 开关 ----------
   function apply() {
-    if (ctx) { musicBus.gain.setTargetAtTime(st.music ? VOL.music : 0, ctx.currentTime, 0.1); sfxBus.gain.setTargetAtTime(st.sfx ? VOL.sfx : 0, ctx.currentTime, 0.05); }
+    if (ctx && !st.voice && cur) { try { cur.src.stop(); } catch (e) {} cur = null; queued = null; }
+    if (ctx) { musicBus.gain.setTargetAtTime(st.music ? VOL.music * (cur ? VOL.duck : 1) : 0, ctx.currentTime, 0.1); sfxBus.gain.setTargetAtTime(st.sfx ? VOL.sfx : 0, ctx.currentTime, 0.05); }
     if (st.music) startMusic(); else stopMusic();
     document.querySelectorAll(".sndgrp").forEach(render);
   }
   function render(el) {
-    el.innerHTML = `<button class="snd ${st.music ? "on" : ""}" data-k="music" aria-label="背景音乐" title="背景音乐">${st.music ? "🎵" : "🎵"}<i>${st.music ? "" : "╲"}</i></button><button class="snd ${st.sfx ? "on" : ""}" data-k="sfx" aria-label="音效" title="音效">${st.sfx ? "🔊" : "🔇"}</button>`;
-    el.querySelectorAll("button").forEach((b) => b.onclick = (e) => { e.stopPropagation(); unlock(); const k = b.dataset.k; st[k] = !st[k]; localStorage.setItem(LS[k], st[k] ? "1" : "0"); apply(); if (k === "sfx" && st.sfx) FX.tap(); if (window.toast) toast(`${k === "music" ? "背景音乐" : "音效"}已${st[k] ? "开启" : "关闭"}`); });
+    el.innerHTML = `<button class="snd ${st.music ? "on" : ""}" data-k="music" aria-label="背景音乐" title="背景音乐">${st.music ? "🎵" : "🎵"}<i>${st.music ? "" : "╲"}</i></button><button class="snd ${st.sfx ? "on" : ""}" data-k="sfx" aria-label="音效" title="音效">${st.sfx ? "🔊" : "🔇"}</button><button class="snd ${st.voice ? "on" : ""}" data-k="voice" aria-label="配音" title="配音">🗣<i>${st.voice ? "" : "╲"}</i></button>`;
+    el.querySelectorAll("button").forEach((b) => b.onclick = (e) => { e.stopPropagation(); unlock(); const k = b.dataset.k; st[k] = !st[k]; localStorage.setItem(LS[k], st[k] ? "1" : "0"); apply(); if (k === "sfx" && st.sfx) FX.tap(); if (window.toast) toast(`${k === "music" ? "背景音乐" : k === "sfx" ? "音效" : "配音"}已${st[k] ? "开启" : "关闭"}`); });
   }
   function unlock() {
     if (!ensure()) return;
     if (ctx.state === "suspended") ctx.resume();
     if (!st.unlocked) { // iOS：在点击里播一个静音片段解锁
       const b = ctx.createBuffer(1, 1, 22050), s = ctx.createBufferSource(); s.buffer = b; s.connect(ctx.destination); s.start(0);
-      st.unlocked = true; startMusic();
+      st.unlocked = true; startMusic(); preload(st.area);
+      if (pendingWelcome && st.area === "hall") { pendingWelcome = false; setTimeout(() => voice("hall_welcome"), 150); }
     }
   }
   window.addEventListener("pointerdown", unlock, { capture: true, passive: true });
@@ -143,7 +189,11 @@
 
   window.SFX = {
     ...FX,
-    area(a) { if (st.area === a) return; st.area = a; if (ctx) { stopMusic(); song = null; startMusic(); } },
+    area(a) { if (st.area === a) return; st.area = a; if (ctx) { stopMusic(); song = null; startMusic(); if (st.unlocked) preload(a); } },
+    voice,
+    welcome() { if (sessionStorage.getItem("sf_welcomed")) return; sessionStorage.setItem("sf_welcomed", "1"); voice("hall_welcome"); },
+    lines: LINES,
+    voiceState: () => ({ cur: cur && cur.id, queued: queued && queued.id, loaded: [...bufs.keys()] }),
     state: () => ({ ...st, ctx: ctx ? ctx.state : "none", playing: !!timer }),
     mount() { document.querySelectorAll(".sndgrp").forEach(render); },
   };

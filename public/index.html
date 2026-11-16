@@ -186,7 +186,9 @@ h1{font-size:24px;margin:14px 0 4px;color:#f5d77a;text-shadow:0 1px 12px #d4af37
 .sndgrp .snd{width:32px;height:32px;padding:0;border-radius:50%;font-size:15px;line-height:1;background:#1a0b2ecc;border:1px solid #d4af3799;position:relative;opacity:.55}
 .sndgrp .snd.on{opacity:1;box-shadow:0 0 8px #d4af3766}
 .sndgrp .snd i{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-style:normal;color:#ff8a8a;font-size:22px;font-weight:900}
-#top .sndgrp .snd{width:28px;height:28px;font-size:13px}
+#top .sndgrp .snd,.mjtop .sndgrp .snd{width:29px;height:29px;font-size:13px}
+.mjtop button{white-space:nowrap}.mjtop>button,#mjRulesBtn{padding:6px 9px}
+.mjtitle{white-space:nowrap;font-size:16px!important;letter-spacing:1px!important;overflow:hidden;text-overflow:ellipsis;min-width:0}
 /* 自动转 */
 .autogrid{display:grid;grid-template-columns:repeat(5,1fr);gap:6px}
 .autogrid button{padding:10px 0}
@@ -354,7 +356,7 @@ function show(id) {
   if (id === "hall") hallMeta();
   if (id === "mj" && window.mjEnter) window.mjEnter();
   if (id !== "mj" && window.mjStopAuto) window.mjStopAuto(null);
-  if (window.SFX) SFX.area(id === "mj" ? "mj" : id === "home" || id === "lobby" || id === "game" ? "poker" : "hall");
+  if (window.SFX) { SFX.area(id === "mj" ? "mj" : id === "home" || id === "lobby" || id === "game" ? "poker" : "hall"); if (id === "hall") SFX.welcome(); }
   if (id === "home" && !watching && socket.connected) { watching = true; socket.emit("watchRooms", renderRooms); }
   else if (id !== "home" && watching) { watching = false; socket.emit("unwatchRooms"); }
 }
@@ -499,14 +501,20 @@ let lastTick = -1;
 function pokerSounds(a, b) {
   if (!window.SFX || !b || !b.game) return;
   const g = b.game, o = a && a.game && a.code === b.code ? a.game : null;
-  if (!o || g.handNo !== o.handNo) { if (g.stage === "preflop") SFX.deal(); return; }
-  if (g.board.length > o.board.length) SFX.deal();
+  if (!o || g.handNo !== o.handNo) { if (g.stage === "preflop") { SFX.deal(); SFX.voice("pk_deal"); } if (g.legal) SFX.voice("pk_turn"); return; }
+  if (g.board.length > o.board.length) { SFX.deal(); SFX.voice(g.board.length === 3 ? "pk_flop" : g.board.length === 4 ? "pk_turncard" : "pk_river"); }
   g.players.forEach((p, i) => {
     const q = o.players[i]; if (!q || p.last === q.last || !p.last) return;
-    if (/弃/.test(p.last)) SFX.fold(); else if (/过/.test(p.last)) SFX.check(); else if (!/盲/.test(p.last)) SFX.chip();
+    if (/弃/.test(p.last)) { SFX.fold(); SFX.voice("pk_fold"); }
+    else if (/过/.test(p.last)) { SFX.check(); SFX.voice("pk_check"); }
+    else if (!/盲/.test(p.last)) { SFX.chip(); SFX.voice(/全下/.test(p.last) ? "pk_allin" : /跟/.test(p.last) ? "pk_call" : "pk_raise"); }
   });
+  if (g.legal && !o.legal) SFX.voice("pk_turn");
   const ended = (x) => x.stage === "handover" || x.stage === "gameover";
-  if (ended(g) && !ended(o)) setTimeout(() => SFX.win(), 250);
+  if (ended(g) && !ended(o)) {
+    if (g.showdown) SFX.voice("pk_showdown");
+    setTimeout(() => { SFX.win(); if (b.you >= 0 && (g.winners || []).includes(b.you)) SFX.voice("pk_youwin"); }, 250);
+  }
 }
 
 function render() {
