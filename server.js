@@ -14,11 +14,14 @@ const BOT_NAMES = ["电脑·阿杰", "电脑·小美", "电脑·老王", "电脑
 export function createApp(opts = {}) {
   const botDelay = opts.botDelay ?? [700, 1400];
   const nextHandDelay = opts.nextHandDelay ?? 8000;
+  const emptyRoomMs = opts.emptyRoomMs ?? 3 * 60 * 1000; // 没有真人在线超过这么久就关闭房间
+  const sweepMs = opts.sweepMs ?? 30 * 1000;
   const autoActDelay = opts.autoActDelay ?? 1500; // 掉线/离座玩家自动操作
   const turnMs = (room) => opts.turnMs ?? room.cfg.timer * 1000; // 测试时可缩短
   const app = express();
   app.use(express.static(path.join(__dirname, "public")));
   app.get("/health", (_req, res) => res.json({ ok: true, rooms: rooms.size }));
+  app.get("/api/rooms", (_req, res) => res.json(listRooms()));
   const server = createServer(app);
   const io = new Server(server, { cors: { origin: "*" } });
   const rooms = new Map();
@@ -39,7 +42,8 @@ export function createApp(opts = {}) {
     const bb = clampInt(c.bb, 2, Math.floor(start / 5), Math.min(20, Math.floor(start / 5)));
     const sb = clampInt(c.sb, 1, bb, Math.max(1, Math.floor(bb / 2)));
     const timer = clampInt(c.timer, 10, 120, 30);
-    return { start, sb, bb, timer };
+    const isPublic = c.public === undefined ? true : !(c.public === false || c.public === "false" || c.public === 0);
+    return { start, sb, bb, timer, public: isPublic };
   }
 
   function viewFor(room, token) {
@@ -106,7 +110,35 @@ export function createApp(opts = {}) {
     }
   }
 
-  function update(room) { room.lastActive = Date.now(); schedule(room); broadcast(room); }
+  function update(room) { room.lastActive = Date.now(); schedule(room); broadcast(room); roomsChanged(); }
+
+  // ---------- 公开房间列表 ----------
+  const humansOnline = (room) => room.members.some((m) => !m.bot && !m.left && m.connected);
+  function listRooms() {
+    const list = [];
+    for (const room of rooms.values()) {
+      if (!room.cfg.public || !humansOnline(room)) continue;
+      const seats = activeMembers(room).length;
+      const host = room.members.find((m) => m.token === room.hostToken);
+      list.push({
+        code: room.code, host: host ? host.name : "", seats, maxSeats: MAX_SEATS, full: seats >= MAX_SEATS,
+        humans: activeMembers(room).filter((m) => !m.bot).length, sb: room.cfg.sb, bb: room.cfg.bb, start: room.cfg.start,
+        status: room.g ? "游戏中" : "等待中", created: room.created,
+      });
+    }
+    // 等待中、未满的排前面，再按创建时间新到旧
+    return list.sort((a, b) => (a.full - b.full) || ((a.status === "游戏中") - (b.status === "游戏中")) || b.created - a.created);
+  }
+  let listTimer = null, lastListJson = "";
+  function roomsChanged() {
+    if (listTimer) return;
+    listTimer = setTimeout(() => {
+      listTimer = null;
+      const list = listRooms(); const json = JSON.stringify(list);
+      if (json === lastListJson) return;
+      lastListJson = json; io.to("lobby").emit("rooms", list);
+    }, opts.listDebounceMs ?? 200);
+  }
 
   function nextHand(room) {
     if (!room.g || room.g.stage !== "handover") return;
@@ -135,7 +167,7 @@ export function createApp(opts = {}) {
     if (!room.g) room.members.splice(idx, 1);
     else { room.members[idx].left = true; room.members[idx].socketId = null; room.g.players[idx].sitOut = true; }
     if (room.hostToken === token) { const h = room.members.find((m) => !m.bot && !m.left); room.hostToken = h ? h.token : null; }
-    if (!room.members.some((m) => !m.bot && !m.left)) { clearTimers(room); rooms.delete(room.code); return; }
+    if (!room.members.some((m) => !m.bot && !m.left)) { clearTimers(room); rooms.delete(room.code); roomsChanged(); return; }
     update(room);
   }
 
@@ -146,11 +178,11 @@ export function createApp(opts = {}) {
 
     socket.on("create", (data = {}, ack = () => {}) => {
       const code = newCode();
-      const room = { code, cfg: parseCfg(data.cfg), members: [], g: null, hostToken: null, spectators: new Set(), lastActive: Date.now() };
+      const room = { code, cfg: parseCfg(data.cfg), members: [], g: null, hostToken: null, spectators: new Set(), lastActive: Date.now(), created: Date.now(), emptySince: null };
       rooms.set(code, room);
       const m = addMember(room, cleanName(data.name), false, socket.id);
       room.hostToken = m.token;
-      socket.data = { code, token: m.token }; socket.join(code);
+      socket.data = { code, token: m.token }; socket.join(code); socket.leave("lobby");
       ack({ ok: true, code, token: m.token });
       update(room);
     });
@@ -170,7 +202,7 @@ export function createApp(opts = {}) {
         if (!m) return ack({ ok: false, error: "暂时没有空位，请等这手牌结束再试" });
         if (!room.hostToken) room.hostToken = m.token;
       }
-      socket.data = { code, token: m.token }; socket.join(code);
+      socket.data = { code, token: m.token }; socket.join(code); socket.leave("lobby");
       ack({ ok: true, code, token: m.token });
       update(room);
     });
@@ -238,20 +270,28 @@ export function createApp(opts = {}) {
       const room = roomOf(); if (!room) return;
       room.spectators.delete(socket.id);
       const m = room.members.find((x) => x.socketId === socket.id);
-      if (m) { m.connected = false; m.socketId = null; update(room); }
+      if (m) { m.connected = false; m.socketId = null; if (!humansOnline(room)) room.emptySince = Date.now(); update(room); }
     });
+
+    socket.on("watchRooms", (ack) => { socket.join("lobby"); if (typeof ack === "function") ack(listRooms()); });
+    socket.on("unwatchRooms", () => socket.leave("lobby"));
+    socket.on("listRooms", (ack) => { if (typeof ack === "function") ack(listRooms()); });
   });
 
-  // 清理长时间无人的房间
-  const sweeper = setInterval(() => {
+  // 清理没有真人在线的房间
+  function sweep() {
+    let changed = false;
     for (const [code, room] of rooms) {
-      const anyone = room.members.some((m) => !m.bot && m.connected);
-      if (!anyone && Date.now() - room.lastActive > 60 * 60 * 1000) { clearTimers(room); rooms.delete(code); }
+      if (humansOnline(room)) { room.emptySince = null; continue; }
+      if (!room.emptySince) room.emptySince = Date.now();
+      if (Date.now() - room.emptySince >= emptyRoomMs) { clearTimers(room); rooms.delete(code); changed = true; }
     }
-  }, 5 * 60 * 1000);
+    if (changed) roomsChanged();
+  }
+  const sweeper = setInterval(sweep, sweepMs);
   sweeper.unref();
 
-  return { app, server, io, rooms };
+  return { app, server, io, rooms, listRooms, sweep };
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])) {
