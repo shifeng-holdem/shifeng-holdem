@@ -27,6 +27,7 @@ h1{font-size:24px;margin:14px 0 4px}h2{font-size:17px;margin:0 0 8px}
 .row>*{flex:1 1 auto}
 .grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
 .hidden{display:none!important}
+.nochips{margin-top:10px;background:#5a3c0b;border-radius:10px;padding:10px 12px;font-size:14px;line-height:1.5}
 .bal{font-size:22px;font-weight:800;color:#ffe9a8}.bal b{font-weight:800}
 .code{font-size:34px;letter-spacing:6px;font-weight:800;color:#e0a82e}
 .member{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #ffffff14}
@@ -111,7 +112,7 @@ h1{font-size:24px;margin:14px 0 4px}h2{font-size:17px;margin:0 0 8px}
     <input id="aPass" type="password" maxlength="72" autocomplete="current-password" placeholder="至少 6 位">
     <div id="aPass2Box" class="hidden"><label>确认密码</label><input id="aPass2" type="password" maxlength="72" autocomplete="new-password" placeholder="再输入一次"></div>
     <button class="pri" id="btnAuth" style="width:100%;margin-top:14px">登录</button>
-    <div class="muted" id="authHint" style="margin-top:10px">还没有账号？点上面的“注册”，新账号赠送游戏筹码，每天还能免费领取。</div>
+    <div class="muted" id="authHint" style="margin-top:10px">还没有账号？点上面的“注册”。游戏币由客服发放，注册后联系客服即可。</div>
   </div>
 </div>
 
@@ -124,7 +125,12 @@ h1{font-size:24px;margin:14px 0 4px}h2{font-size:17px;margin:0 0 8px}
       <div style="flex:1;min-width:0"><div class="muted">👤 <span id="uName"></span></div><div class="bal">余额 <b id="uBal">0</b></div></div>
       <button class="ghost" id="btnLogout" style="flex:none;padding:6px 10px;font-size:13px">退出</button>
     </div>
-    <button class="pri" id="btnClaim" style="width:100%;margin-top:10px">领取每日免费筹码</button>
+    <div id="noChips" class="nochips hidden">
+      <div>💬 余额不足，请联系客服获取游戏币</div>
+      <!-- 客服链接（以后填 Telegram）：服务器环境变量 SUPPORT_URL，或改下面脚本里的 SUPPORT_URL_FALLBACK -->
+      <button class="blue" id="btnSupport" style="width:100%;margin-top:8px">联系客服</button>
+      <div class="muted hidden" id="supportSoon" style="margin-top:6px">客服联系方式即将公布，请稍后再来看看</div>
+    </div>
   </div>
   <div class="card-box" id="roomsBox">
     <div class="row" style="justify-content:space-between;flex-wrap:nowrap"><h2 style="flex:none;margin:0">公开房间</h2><button class="ghost" id="btnRefresh" style="flex:none;padding:5px 12px;font-size:13px">刷新</button></div>
@@ -219,7 +225,7 @@ $("authTabs").querySelectorAll("button").forEach((b) => b.onclick = () => {
   $("authTabs").querySelectorAll("button").forEach((x) => x.classList.toggle("on", x === b));
   $("aPass2Box").classList.toggle("hidden", authMode !== "register");
   $("btnAuth").textContent = authMode === "login" ? "登录" : "注册并登录";
-  $("authHint").textContent = authMode === "login" ? "还没有账号？点上面的“注册”，新账号赠送游戏筹码，每天还能免费领取。" : "用户名注册后不能修改，会显示在牌桌上。请牢记密码。";
+  $("authHint").textContent = authMode === "login" ? "还没有账号？点上面的“注册”。游戏币由客服发放，注册后联系客服即可。" : "用户名注册后不能修改，会显示在牌桌上。请牢记密码。";
   $("aPass").autocomplete = authMode === "login" ? "current-password" : "new-password";
 });
 async function post(url, body) {
@@ -237,21 +243,24 @@ async function doAuth() {
   if (!r.ok) return toast(r.d.error || "出错了，请重试");
   authToken = r.d.token; localStorage.setItem("sf_token", authToken);
   $("aPass").value = $("aPass2").value = "";
-  if (authMode === "register") toast(`注册成功，送你 ${r.d.user.balance} 筹码`);
+  if (authMode === "register") toast("注册成功");
   setMe(r.d.user); socket.connect();
 }
 $("btnAuth").onclick = doAuth;
 $("aPass").onkeydown = $("aPass2").onkeydown = (e) => { if (e.key === "Enter") doAuth(); };
 function setMe(u) {
   me = u; $("uName").textContent = u.username; $("uBal").textContent = u.balance.toLocaleString();
-  const b = $("btnClaim"); b.disabled = !u.canClaim;
-  b.textContent = u.canClaim ? `领取每日免费筹码 +${u.dailyFree}` : "今天已领取，明天再来";
+  // 余额为 0：提示联系客服（游戏币只能由庄家赠送）
+  $("noChips").classList.toggle("hidden", u.balance > 0);
+  const link = supportLink();
+  $("btnSupport").classList.toggle("hidden", !link); $("supportSoon").classList.toggle("hidden", !!link);
 }
-$("btnClaim").onclick = async () => {
-  const r = await post("/api/claim");
-  if (!r.ok) return toast(r.d.error || "领取失败");
-  toast(`已领取 ${r.d.amount} 筹码`); setMe({ ...me, balance: r.d.balance, canClaim: false });
-};
+// 客服入口占位：以后在服务器设置 SUPPORT_URL（例如 https://t.me/xxx），或直接改这里
+const SUPPORT_URL_FALLBACK = "";
+function supportLink() { return (me && me.supportUrl) || SUPPORT_URL_FALLBACK; }
+function contactSupport() { const l = supportLink(); if (l) window.open(l, "_blank", "noopener"); else toast("客服联系方式即将公布"); }
+$("btnSupport").onclick = contactSupport;
+function noChips(need) { toast(`余额不足，请联系客服获取游戏币（带入需要 ${need}，你有 ${me ? me.balance : 0}）`); }
 function logout() {
   post("/api/logout"); authToken = ""; localStorage.removeItem("sf_token"); clearRoom(); me = null;
   socket.disconnect(); show("auth");
@@ -288,7 +297,7 @@ function renderRooms(list) {
   el.querySelectorAll(".rm").forEach((row) => row.onclick = () => {
     const r = roomsCache.find((x) => x.code === row.dataset.code);
     if (!r) return; if (r.full) return toast("房间已满");
-    if (me && me.balance < r.start) return toast(`余额不足：这个房间带入 ${r.start}`);
+    if (me && me.balance < r.start) return noChips(r.start);
     if (!confirm(`从余额带入 ${r.start} 筹码，加入房间 ${r.code}？`)) return;
     join(r.code, false);
   });
@@ -298,7 +307,7 @@ $("btnRefresh").onclick = () => socket.emit("listRooms", (l) => { renderRooms(l)
 
 $("btnCreate").onclick = () => {
   const start = +$("cStart").value || 0;
-  if (me && start > me.balance) return toast(`余额不足：带入 ${start}，你只有 ${me.balance}`);
+  if (me && start > me.balance) return noChips(start);
   socket.emit("create", { cfg: { start: $("cStart").value, sb: $("cSb").value, bb: $("cBb").value, timer: $("cTimer").value, public: createPublic } }, (r) => { if (r.ok) setRoom(r.code); else toast(r.error); });
 };
 function join(c, auto) {
@@ -433,7 +442,7 @@ function renderActions() {
   box.innerHTML = h;
 }
 function rebuy() {
-  if (me && me.balance < S.cfg.start) return toast(`余额不足：需要 ${S.cfg.start}`);
+  if (me && me.balance < S.cfg.start) return noChips(S.cfg.start);
   socket.emit("rebuy", (r) => { if (r && r.ok) toast("已补充筹码"); else toast((r && r.error) || "现在不能补充"); });
 }
 function setR(v) { const L = S.game.legal; raiseTo = Math.min(L.raiseMax, Math.max(L.raiseMin, v)); renderActions(); }

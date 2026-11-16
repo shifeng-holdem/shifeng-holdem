@@ -14,7 +14,10 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const MAX_SEATS = 9;
 const HOUSE = "__house__";
 const BOT_NAMES = ["电脑·阿杰", "电脑·小美", "电脑·老王", "电脑·Lisa", "电脑·大卫", "电脑·阿芳", "电脑·Tom", "电脑·小林", "电脑·阿强"];
-const DEFAULT_SETTINGS = { dailyFree: 2000, rakePercent: 0, signupBonus: 10000 };
+// 玩家的筹码只能由庄家（管理员）在后台赠送：注册不送、没有每日免费领取
+const DEFAULT_SETTINGS = { rakePercent: 0 };
+const SIGNUP_BONUS = 0;
+const NO_CHIPS_MSG = "余额不足，请联系客服获取游戏币";
 const SESSION_DAYS = 30;
 
 export async function createApp(opts = {}) {
@@ -25,10 +28,13 @@ export async function createApp(opts = {}) {
   const autoActDelay = opts.autoActDelay ?? 1500;
   const bcryptRounds = opts.bcryptRounds ?? 10;
   const turnMs = (room) => opts.turnMs ?? room.cfg.timer * 1000;
-  const claimTz = opts.claimTz ?? process.env.CLAIM_TZ ?? "Asia/Shanghai";
+  const supportUrl = opts.supportUrl ?? process.env.SUPPORT_URL ?? ""; // 客服链接（以后填 Telegram），空则只显示文字
 
   const store = opts.store ?? await openStore({ databaseUrl: opts.databaseUrl, dataFile: opts.dataFile, memory: opts.memory, schema: opts.schema });
-  let settings = { ...DEFAULT_SETTINGS, ...(await store.getSettings()) };
+  // 启动时清理旧版本留下的“注册赠送 / 每日领取”设置，确保它们不再生效
+  const stored = await store.getSettings();
+  for (const k of ["signupBonus", "dailyFree"]) if (k in stored && stored[k] !== 0) await store.setSetting(k, 0);
+  let settings = { ...DEFAULT_SETTINGS, rakePercent: Number(stored.rakePercent) || 0 };
   let house = await store.getUserByName(HOUSE);
   if (!house) house = await store.createUser(HOUSE, "!", 0, { isHouse: true });
   const houseId = house.id;
@@ -57,13 +63,12 @@ export async function createApp(opts = {}) {
   const clampInt = (v, lo, hi, d) => { const n = Math.floor(Number(v)); return Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : d; };
   const activeMembers = (room) => room.members.filter((m) => !m.left);
   const betting = (g) => g && ["preflop", "flop", "turn", "river"].includes(g.stage);
-  const today = () => new Intl.DateTimeFormat("en-CA", { timeZone: claimTz, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
   const newCode = () => {
     const A = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
     let c; do { c = Array.from({ length: 5 }, () => A[Math.floor(Math.random() * A.length)]).join(""); } while (rooms.has(c));
     return c;
   };
-  const publicUser = (u) => ({ id: u.id, username: u.username, balance: u.balance, isAdmin: u.isAdmin, canClaim: u.lastClaim !== today(), dailyFree: settings.dailyFree });
+  const publicUser = (u) => ({ id: u.id, username: u.username, balance: u.balance, isAdmin: u.isAdmin, supportUrl });
 
   // ---------- 账号 ----------
   async function userFromToken(token) {
@@ -91,7 +96,7 @@ export async function createApp(opts = {}) {
       if (!NAME_RE.test(username) || username.startsWith("__")) return res.status(400).json({ error: "用户名需 2–16 位，只能用中文、字母、数字或下划线" });
       if (password.length < 6 || password.length > 72) return res.status(400).json({ error: "密码至少 6 位" });
       let u;
-      try { u = await store.createUser(username, await bcrypt.hash(password, bcryptRounds), settings.signupBonus); }
+      try { u = await store.createUser(username, await bcrypt.hash(password, bcryptRounds), SIGNUP_BONUS); }
       catch (e) { if (e.message === "EXISTS") return res.status(409).json({ error: "这个用户名已被注册" }); throw e; }
       res.json({ token: await newSession(u), user: publicUser(u) });
     } catch (e) { next(e); }
@@ -115,14 +120,6 @@ export async function createApp(opts = {}) {
 
   app.post("/api/logout", async (req, res, next) => { try { const t = bearer(req); if (t) await store.deleteSession(t); res.json({ ok: true }); } catch (e) { next(e); } });
   app.get("/api/me", auth, (req, res) => res.json(publicUser(req.user)));
-  app.post("/api/claim", auth, async (req, res, next) => {
-    try {
-      const bal = await store.claimDaily(req.user.id, today(), settings.dailyFree);
-      if (bal == null) return res.status(409).json({ error: "今天已经领过了，明天再来" });
-      pushMe(req.user.id);
-      res.json({ ok: true, amount: settings.dailyFree, balance: bal });
-    } catch (e) { next(e); }
-  });
   app.get("/api/me/ledger", auth, async (req, res, next) => { try { res.json(await store.ledger(req.user.id, 30)); } catch (e) { next(e); } });
   app.get("/health", (_req, res) => res.json({ ok: true, rooms: rooms.size, storage: store.kind }));
   app.get("/api/rooms", (_req, res) => res.json(listRooms()));
@@ -356,9 +353,9 @@ export async function createApp(opts = {}) {
       try {
         const u = await fresh(); if (!u) return ack({ ok: false, error: "账号不可用" });
         const cfg = parseCfg(data.cfg);
-        if (u.balance < cfg.start) return ack({ ok: false, error: `余额不足：带入需要 ${cfg.start}，你有 ${u.balance}` });
+        if (u.balance < cfg.start) return ack({ ok: false, error: `${NO_CHIPS_MSG}（带入需要 ${cfg.start}，你有 ${u.balance}）`, noChips: true });
         const code = newCode();
-        try { await store.adjust(uid, -cfg.start, `带入 房间${code}`); } catch { return ack({ ok: false, error: "余额不足" }); }
+        try { await store.adjust(uid, -cfg.start, `带入 房间${code}`); } catch { return ack({ ok: false, error: NO_CHIPS_MSG, noChips: true }); }
         pushMe(uid);
         const room = { code, cfg, members: [], g: null, hostToken: null, lastActive: Date.now(), created: Date.now(), emptySince: null };
         rooms.set(code, room);
@@ -382,8 +379,8 @@ export async function createApp(opts = {}) {
         if (activeMembers(room).length >= MAX_SEATS) return ack({ ok: false, error: "房间已满（最多 9 人）" });
         if (room.g && room.g.players.length >= MAX_SEATS && betting(room.g)) return ack({ ok: false, error: "暂时没有空位，请等这手牌结束再试" });
         const u = await fresh(); if (!u) return ack({ ok: false, error: "账号不可用" });
-        if (u.balance < room.cfg.start) return ack({ ok: false, error: `余额不足：带入需要 ${room.cfg.start}，你有 ${u.balance}` });
-        try { await store.adjust(uid, -room.cfg.start, `带入 房间${code}`); } catch { return ack({ ok: false, error: "余额不足" }); }
+        if (u.balance < room.cfg.start) return ack({ ok: false, error: `${NO_CHIPS_MSG}（带入需要 ${room.cfg.start}，你有 ${u.balance}）`, noChips: true });
+        try { await store.adjust(uid, -room.cfg.start, `带入 房间${code}`); } catch { return ack({ ok: false, error: NO_CHIPS_MSG, noChips: true }); }
         pushMe(uid);
         room = rooms.get(code);
         const refund = (msg) => { track(store.adjust(uid, room ? room.cfg.start : 0, `带入失败退回 房间${code}`).then(() => pushMe(uid))); ack({ ok: false, error: msg }); };
@@ -446,7 +443,7 @@ export async function createApp(opts = {}) {
       if (p.chips > 0 || (betting(room.g) && !p.out) || m.cashedOut || m.pendingCashout) return ack({ ok: false, error: "现在不能补充筹码" });
       if (m.rebuying) return ack({ ok: false }); m.rebuying = true;
       try { await store.adjust(uid, -room.cfg.start, `补充带入 房间${room.code}`); }
-      catch { m.rebuying = false; return ack({ ok: false, error: "余额不足" }); }
+      catch { m.rebuying = false; return ack({ ok: false, error: NO_CHIPS_MSG, noChips: true }); }
       m.rebuying = false;
       if (!rooms.has(room.code) || m.left) { credit(m, room.cfg.start, `补充失败退回 房间${room.code}`); return ack({ ok: false }); }
       p.chips += room.cfg.start; pushMe(uid);
@@ -496,11 +493,11 @@ export async function createApp(opts = {}) {
   });
   aget("/users/:id/ledger", async (req, res) => res.json(await store.ledger(Number(req.params.id), 100)));
   apost("/users/:id/adjust", async (req, res) => {
-    const id = Number(req.params.id); const delta = Math.trunc(Number(req.body?.delta)); const reason = String(req.body?.reason || "").trim().slice(0, 100);
+    const id = Number(req.params.id); const delta = Math.trunc(Number(req.body?.delta));
     if (!delta || Math.abs(delta) > 1e9) return res.status(400).json({ error: "请输入有效的数量" });
-    if (!reason) return res.status(400).json({ error: "请填写原因" });
+    const reason = String(req.body?.reason || "").trim().slice(0, 100) || (delta > 0 ? "管理员赠送" : "管理员扣除");
     const u = await store.getUser(id); if (!u || u.isHouse) return res.status(404).json({ error: "找不到玩家" });
-    try { const bal = await store.adjust(id, delta, `后台${delta > 0 ? "增加" : "扣除"}：${reason}`, req.user.username); pushMe(id); res.json({ ok: true, balance: bal }); }
+    try { const bal = await store.adjust(id, delta, reason, req.user.username); pushMe(id); res.json({ ok: true, balance: bal }); }
     catch (e) { if (e.message === "INSUFFICIENT") return res.status(400).json({ error: "余额不够扣" }); throw e; }
   });
   apost("/users/:id/ban", async (req, res) => {
@@ -532,10 +529,8 @@ export async function createApp(opts = {}) {
   });
   apost("/settings", async (req, res) => {
     const b = req.body || {};
-    if (b.dailyFree !== undefined) settings.dailyFree = clampInt(b.dailyFree, 0, 1e9, settings.dailyFree);
-    if (b.signupBonus !== undefined) settings.signupBonus = clampInt(b.signupBonus, 0, 1e9, settings.signupBonus);
     if (b.rakePercent !== undefined) { const v = Number(b.rakePercent); if (!(v >= 0 && v <= 10)) return res.status(400).json({ error: "抽水比例需在 0–10% 之间" }); settings.rakePercent = Math.round(v * 10) / 10; }
-    for (const k of ["dailyFree", "signupBonus", "rakePercent"]) await store.setSetting(k, settings[k]);
+    await store.setSetting("rakePercent", settings.rakePercent);
     res.json({ ok: true, settings });
   });
   app.use("/api/admin", A);

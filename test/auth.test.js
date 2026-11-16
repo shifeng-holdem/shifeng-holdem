@@ -7,7 +7,7 @@ test("注册、登录、会话、校验", async () => {
   const ctx = await boot();
   try {
     const r = await register(ctx, "Laura", "pass1234");
-    assert.equal(r.user.username, "Laura"); assert.equal(r.user.balance, 10000); assert.equal(r.user.isAdmin, false);
+    assert.equal(r.user.username, "Laura"); assert.equal(r.user.balance, 0, "注册不送筹码"); assert.equal(r.user.isAdmin, false);
     // 密码用 bcrypt 存储，不是明文
     const u = await ctx.store.getUserByName("laura");
     assert.notEqual(u.passHash, "pass1234"); assert.ok(u.passHash.startsWith("$2")); assert.ok(await bcrypt.compare("pass1234", u.passHash));
@@ -31,17 +31,40 @@ test("注册、登录、会话、校验", async () => {
   } finally { await ctx.close(); }
 });
 
-test("每日免费领取：一天一次，金额由后台设置", async () => {
-  const ctx = await boot();
+test("没有每日领取；旧版本存下的注册赠送/每日领取设置启动时被清零", async () => {
+  const { openStore } = await import("../db.js");
+  const store = await openStore({ memory: true });
+  await store.setSetting("signupBonus", 10000); await store.setSetting("dailyFree", 2000); await store.setSetting("rakePercent", 1.5);
+  const ctx = await boot({ store });
   try {
-    const { token } = await register(ctx, "每天来");
-    const c1 = await api(ctx, "POST", "/api/claim", null, token);
-    assert.equal(c1.status, 200); assert.equal(c1.data.amount, 2000); assert.equal(c1.data.balance, 12000);
-    assert.equal((await api(ctx, "POST", "/api/claim", null, token)).status, 409);
-    const me = await api(ctx, "GET", "/api/me", null, token);
-    assert.equal(me.data.canClaim, false);
+    const { token, user } = await register(ctx, "新玩家");
+    assert.equal(user.balance, 0);
+    assert.equal((await api(ctx, "GET", "/api/me", null, token)).data.balance, 0);
+    assert.equal((await api(ctx, "POST", "/api/claim", null, token)).status, 404, "领取接口已移除");
+    const me = (await api(ctx, "GET", "/api/me", null, token)).data;
+    assert.equal(me.canClaim, undefined); assert.equal(me.dailyFree, undefined);
+    const st = await store.getSettings();
+    assert.equal(st.signupBonus, 0); assert.equal(st.dailyFree, 0); assert.equal(st.rakePercent, 1.5, "抽水设置保留");
     const ledger = await api(ctx, "GET", "/api/me/ledger", null, token);
-    assert.deepEqual(ledger.data.map((x) => x.reason), ["每日免费领取", "注册赠送"]);
+    assert.deepEqual(ledger.data, [], "注册没有任何入账");
+  } finally { await ctx.close(); }
+});
+
+test("余额为 0 不能建房或加入房间，提示联系客服", async () => {
+  const ctx = await boot({ supportUrl: "https://t.me/example_support" });
+  try {
+    const { player, ack } = await import("../testlib/helpers.js");
+    const rich = await player(ctx, "有钱人");
+    const r = await ack(rich, "create", {});
+    const poor = await player(ctx, "没钱人", 0);
+    assert.equal(poor.user.balance, 0);
+    const me = (await api(ctx, "GET", "/api/me", null, poor.token)).data;
+    assert.equal(me.supportUrl, "https://t.me/example_support", "客服链接通过 /api/me 下发");
+    const c = await ack(poor, "create", {});
+    assert.equal(c.ok, false); assert.match(c.error, /余额不足，请联系客服获取游戏币/); assert.equal(c.noChips, true);
+    const j = await ack(poor, "join", { code: r.code });
+    assert.equal(j.ok, false); assert.match(j.error, /请联系客服获取游戏币/);
+    assert.equal((await ctx.store.getUser(poor.user.id)).balance, 0);
   } finally { await ctx.close(); }
 });
 

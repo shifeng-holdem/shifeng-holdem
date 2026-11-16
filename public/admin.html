@@ -39,6 +39,7 @@ h1{font-size:22px;margin:10px 0 2px}h2{font-size:16px;margin:0 0 8px}
 .ledger{font-size:12px;line-height:1.6;background:#0d2a1c;border-radius:8px;padding:8px;margin-top:8px;max-height:220px;overflow:auto}
 .warn{background:#5a3c0b;border-radius:10px;padding:8px 10px;font-size:13px;margin-top:8px}
 #toast{position:fixed;left:50%;top:14px;transform:translateX(-50%);background:#000c;padding:8px 14px;border-radius:10px;z-index:99;font-size:14px}
+.presets button{flex:1 1 auto}
 .mem{display:flex;justify-content:space-between;align-items:center;font-size:13px;padding:4px 0}
 </style>
 </head>
@@ -77,8 +78,7 @@ h1{font-size:22px;margin:10px 0 2px}h2{font-size:16px;margin:0 0 8px}
     <div id="t-set" class="hidden">
       <div class="box">
         <h2>筹码规则</h2>
-        <label>每日免费领取数量</label><input id="sDaily" type="number" inputmode="numeric">
-        <label>新账号注册赠送</label><input id="sSignup" type="number" inputmode="numeric">
+        <div class="muted">玩家的游戏币只能由管理员在“玩家”页赠送：注册不送，也没有每日免费领取。</div>
         <label>抽水比例（%，0–10，翻牌后才抽，进入庄家账户）</label><input id="sRake" type="number" inputmode="decimal" step="0.5">
         <button class="pri" id="btnSave" style="width:100%;margin-top:12px">保存设置</button>
         <div class="muted" style="margin-top:8px">抽水比例从下一手牌开始生效。</div>
@@ -131,7 +131,7 @@ async function loadStats() {
   $("stats").innerHTML = items.map(([l, v]) => `<div class="stat"><div class="v">${v}</div><div class="l">${l}</div></div>`).join("");
   const houseNote = `<div class="muted" style="margin-top:8px">庄家余额 = 抽水收入 − 电脑玩家带入的筹码（电脑玩家离桌时返还），为负数是正常的。</div>`;
   $("storeWarn").innerHTML = houseNote + (s.storage === "postgres" ? `<div class="muted" style="margin-top:8px">数据存储：Postgres 数据库</div>` : `<div class="warn">⚠️ 当前没有连接数据库（存储：${esc(s.storage)}），服务器重启或重新部署后账号和余额会丢失。请在 Render 设置 DATABASE_URL。</div>`);
-  $("sDaily").value = s.settings.dailyFree; $("sSignup").value = s.settings.signupBonus; $("sRake").value = s.settings.rakePercent;
+  $("sRake").value = s.settings.rakePercent;
 }
 
 let usersCache = [];
@@ -143,23 +143,41 @@ async function loadUsers() {
       <div class="money">${fmt(u.balance)}</div>
     </div>
     <div class="muted">ID ${u.id} · 注册 ${t2(u.createdAt)} · 最近登录 ${t2(u.lastLogin)}</div>
-    <div class="row" style="margin-top:6px"><button class="sm" onclick="openAdjust(${u.id})">加/减筹码</button><button class="sm ghost" onclick="openLedger(${u.id})">流水</button>${u.isAdmin ? "" : `<button class="sm ${u.banned ? "" : "red"}" onclick="ban(${u.id}, ${!u.banned})">${u.banned ? "解封" : "封禁"}</button>`}</div>
+    <div class="row" style="margin-top:6px"><button class="pri sm" onclick="openGift(${u.id})">🎁 赠送</button><button class="sm" onclick="openAdjust(${u.id})">扣除</button><button class="sm ghost" onclick="openLedger(${u.id})">流水</button>${u.isAdmin ? "" : `<button class="sm ${u.banned ? "" : "red"}" onclick="ban(${u.id}, ${!u.banned})">${u.banned ? "解封" : "封禁"}</button>`}</div>
     <div class="extra"></div></div>`).join("") : `<div class="muted" style="padding:8px 0">没有找到玩家</div>`;
 }
 $("btnQ").onclick = loadUsers; $("q").onkeydown = (e) => { if (e.key === "Enter") loadUsers(); };
 function extra(id) { return document.querySelector(`#u${id} .extra`); }
+const PRESETS = [1000, 5000, 10000, 50000, 100000];
+function openGift(id) {
+  extra(id).innerHTML = `<div class="box gift" style="margin:8px 0 0;padding:10px">
+    <div class="row presets">${PRESETS.map((n) => `<button class="sm ghost" onclick="setGift(${id}, ${n})">${n >= 10000 ? n / 10000 + " 万" : fmt(n)}</button>`).join("")}</div>
+    <label>赠送数量</label><input id="ga${id}" type="number" inputmode="numeric" placeholder="输入数量或点上面的快捷金额" oninput="giftLabel(${id})">
+    <label>备注（可不填，默认“管理员赠送”）</label><input id="gr${id}" maxlength="100" placeholder="管理员赠送">
+    <div class="row" style="margin-top:8px"><button class="pri" style="flex:1" id="gb${id}" onclick="gift(${id})">确认赠送</button><button class="ghost sm" onclick="extra(${id}).innerHTML=''">取消</button></div></div>`;
+  $("ga" + id).focus();
+}
+function setGift(id, n) { $("ga" + id).value = n; giftLabel(id); }
+function giftLabel(id) { const n = Math.trunc(+$("ga" + id).value); $("gb" + id).textContent = n > 0 ? `确认赠送 ${fmt(n)}` : "确认赠送"; }
+async function gift(id) {
+  const delta = Math.trunc(+$("ga" + id).value); const reason = $("gr" + id).value.trim();
+  if (!(delta > 0)) return toast("请输入赠送数量");
+  const btn = $("gb" + id); btn.disabled = true;
+  try { const d = await call("POST", `/api/admin/users/${id}/adjust`, { delta, reason }); toast(`已赠送 ${fmt(delta)}，新余额 ${fmt(d.balance)}`); loadUsers(); }
+  catch (e) { toast(e.message); btn.disabled = false; }
+}
 function openAdjust(id) {
   extra(id).innerHTML = `<div class="box" style="margin:8px 0 0;padding:10px">
-    <label>数量（正数增加，负数扣除）</label><input id="ad${id}" type="number" inputmode="numeric" placeholder="例如 5000 或 -2000">
-    <label>原因（必填，会记入流水）</label><input id="ar${id}" maxlength="100" placeholder="例如：活动奖励">
-    <div class="row" style="margin-top:8px"><button class="pri sm" onclick="adjust(${id})">确认</button><button class="ghost sm" onclick="extra(${id}).innerHTML=''">取消</button></div></div>`;
+    <label>扣除数量</label><input id="ad${id}" type="number" inputmode="numeric" placeholder="例如 2000">
+    <label>原因（可不填，默认“管理员扣除”）</label><input id="ar${id}" maxlength="100" placeholder="管理员扣除">
+    <div class="row" style="margin-top:8px"><button class="red sm" onclick="adjust(${id})">确认扣除</button><button class="ghost sm" onclick="extra(${id}).innerHTML=''">取消</button></div></div>`;
 }
 async function adjust(id) {
-  const delta = Math.trunc(+$("ad" + id).value), reason = $("ar" + id).value.trim();
-  if (!delta) return toast("请输入数量"); if (!reason) return toast("请填写原因");
+  const n = Math.abs(Math.trunc(+$("ad" + id).value)), reason = $("ar" + id).value.trim();
+  if (!n) return toast("请输入数量");
   const u = usersCache.find((x) => x.id === id);
-  if (!confirm(`${delta > 0 ? "给" : "从"} ${u.username} ${delta > 0 ? "增加" : "扣除"} ${fmt(Math.abs(delta))} 筹码？\n原因：${reason}`)) return;
-  try { const d = await call("POST", `/api/admin/users/${id}/adjust`, { delta, reason }); toast(`完成，新余额 ${fmt(d.balance)}`); loadUsers(); } catch (e) { toast(e.message); }
+  if (!confirm(`从 ${u.username} 扣除 ${fmt(n)} 筹码？`)) return;
+  try { const d = await call("POST", `/api/admin/users/${id}/adjust`, { delta: -n, reason }); toast(`完成，新余额 ${fmt(d.balance)}`); loadUsers(); } catch (e) { toast(e.message); }
 }
 async function openLedger(id) {
   const rows = await call("GET", `/api/admin/users/${id}/ledger`);
@@ -185,8 +203,8 @@ async function kick(code, userId, name) { if (!confirm(`把 ${name} 移出房间
 
 $("btnSave").onclick = async () => {
   try {
-    const d = await call("POST", "/api/admin/settings", { dailyFree: +$("sDaily").value, signupBonus: +$("sSignup").value, rakePercent: +$("sRake").value });
-    toast(`已保存：每日 ${d.settings.dailyFree}，注册送 ${d.settings.signupBonus}，抽水 ${d.settings.rakePercent}%`);
+    const d = await call("POST", "/api/admin/settings", { rakePercent: +$("sRake").value });
+    toast(`已保存：抽水 ${d.settings.rakePercent}%`);
   } catch (e) { toast(e.message); }
 };
 

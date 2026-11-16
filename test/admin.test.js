@@ -15,20 +15,26 @@ test("管理接口：未登录 401，普通玩家 403", async () => {
   } finally { await ctx.close(); }
 });
 
-test("查玩家、加减筹码（必须写原因并记账）、封禁/解封", async () => {
+test("查玩家、赠送/扣除筹码（备注可选并记账）、封禁/解封", async () => {
   const ctx = await boot();
   try {
     const adm = await adminToken(ctx);
     const p = await player(ctx, "小李");
+    const z = await register(ctx, "零币玩家");
+    const g = await api(ctx, "POST", `/api/admin/users/${z.user.id}/adjust`, { delta: 5000 }, adm);
+    assert.equal(g.data.balance, 5000, "管理员赠送后才有游戏币");
     const found = await api(ctx, "GET", "/api/admin/users?q=小", null, adm);
     assert.deepEqual(found.data.map((u) => u.username), ["小李"]);
-    assert.equal((await api(ctx, "POST", `/api/admin/users/${p.user.id}/adjust`, { delta: 500 }, adm)).status, 400, "没写原因不行");
-    const add = await api(ctx, "POST", `/api/admin/users/${p.user.id}/adjust`, { delta: 500, reason: "活动奖励" }, adm);
-    assert.equal(add.data.balance, 10500);
+    assert.equal((await api(ctx, "GET", "/api/admin/users?q=零币", null, adm)).data[0].balance, 5000);
+    const gift = await api(ctx, "POST", `/api/admin/users/${p.user.id}/adjust`, { delta: 500 }, adm);
+    assert.equal(gift.status, 200, "备注可以不填"); assert.equal(gift.data.balance, 10500);
+    let led0 = await api(ctx, "GET", `/api/admin/users/${p.user.id}/ledger`, null, adm);
+    assert.equal(led0.data[0].reason, "管理员赠送"); assert.equal(led0.data[0].actor, "boss");
+    assert.equal((await api(ctx, "POST", `/api/admin/users/${p.user.id}/adjust`, { delta: 0 }, adm)).status, 400);
     assert.equal((await api(ctx, "POST", `/api/admin/users/${p.user.id}/adjust`, { delta: -99999, reason: "测试" }, adm)).status, 400, "不能扣成负数");
     await api(ctx, "POST", `/api/admin/users/${p.user.id}/adjust`, { delta: -300, reason: "违规扣除" }, adm);
     const led = await api(ctx, "GET", `/api/admin/users/${p.user.id}/ledger`, null, adm);
-    assert.equal(led.data[0].delta, -300); assert.match(led.data[0].reason, /违规扣除/); assert.equal(led.data[0].actor, "boss"); assert.equal(led.data[0].balanceAfter, 10200);
+    assert.equal(led.data[0].delta, -300); assert.equal(led.data[0].reason, "违规扣除"); assert.equal(led.data[0].actor, "boss"); assert.equal(led.data[0].balanceAfter, 10200);
     await until(() => p.me && p.me.balance === 10200, 2000, "余额变动没有推送给玩家");
 
     // 封禁：在房间里的会被请出并返还筹码，不能再登录
@@ -46,7 +52,7 @@ test("查玩家、加减筹码（必须写原因并记账）、封禁/解封", a
   } finally { await ctx.close(); }
 });
 
-test("查看房间、踢人、关闭房间都会返还筹码；设置每日领取金额", async () => {
+test("查看房间、踢人、关闭房间都会返还筹码；设置里只剩抽水", async () => {
   const ctx = await boot();
   try {
     const adm = await adminToken(ctx);
@@ -70,10 +76,10 @@ test("查看房间、踢人、关闭房间都会返还筹码；设置每日领�
     assert.equal(ctx.rooms.size, 0); assert.equal(await balanceOf(ctx, a), 10000);
     assert.equal(await economy(ctx), eco);
 
-    const s = await api(ctx, "POST", "/api/admin/settings", { dailyFree: 5000 }, adm);
-    assert.equal(s.data.settings.dailyFree, 5000);
-    const c = await api(ctx, "POST", "/api/claim", null, a.token);
-    assert.equal(c.data.amount, 5000);
+    const s = await api(ctx, "POST", "/api/admin/settings", { dailyFree: 5000, signupBonus: 9999, rakePercent: 2 }, adm);
+    assert.deepEqual(s.data.settings, { rakePercent: 2 }, "不能再设置注册赠送或每日领取");
+    const { user } = await register(ctx, "后来的人");
+    assert.equal(user.balance, 0);
     assert.equal((await api(ctx, "POST", "/api/admin/settings", { rakePercent: 50 }, adm)).status, 400);
   } finally { await ctx.close(); }
 });

@@ -47,7 +47,7 @@ test("余额不足不能带入；输光后可以从余额补充筹码", async ()
   try {
     const a = await player(ctx, "穷玩家");
     const big = await ack(a, "create", { cfg: { start: 20000 } });
-    assert.equal(big.ok, false); assert.match(big.error, /余额不足/);
+    assert.equal(big.ok, false); assert.match(big.error, /余额不足，请联系客服获取游戏币/);
     assert.equal(await balanceOf(ctx, a), 10000);
     const b = await player(ctx, "对手");
     const eco = await economy(ctx);

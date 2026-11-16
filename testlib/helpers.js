@@ -39,7 +39,12 @@ export function client(ctx, token) {
   return s;
 }
 export const ack = (s, ev, data) => new Promise((r) => (data === undefined ? s.emit(ev, r) : s.emit(ev, data, r)));
-export async function player(ctx, name) { const r = await register(ctx, name); const s = client(ctx, r.token); s.token = r.token; s.user = r.user; return s; }
+// 注册一个玩家；注册本身是 0 筹码，这里模拟管理员赠送 chips 个游戏币（默认 10000）
+export async function player(ctx, name, chips = 10000) {
+  const r = await register(ctx, name);
+  if (chips) { r.user.balance = await ctx.store.adjust(r.user.id, chips, "管理员赠送", "test"); }
+  const s = client(ctx, r.token); s.token = r.token; s.user = r.user; return s;
+}
 
 // 整个经济体的筹码总量 = 所有账户余额（含庄家）+ 牌桌上的筹码
 export async function economy(ctx) {
