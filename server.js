@@ -47,7 +47,8 @@ export async function createApp(opts = {}) {
   } else if (!opts.quiet) console.warn("⚠️  没有设置 ADMIN_USERNAME / ADMIN_PASSWORD，管理后台暂时无人可以登录。");
 
   const app = express();
-  app.use(express.json({ limit: "20kb" }));
+  const json20 = express.json({ limit: "20kb" });
+  app.use((req, res, next) => (req.path === "/api/me/avatar" ? next() : json20(req, res, next)));
   app.use(express.static(path.join(__dirname, "public")));
   app.get("/admin", (_req, res) => res.sendFile(path.join(__dirname, "public", "admin.html")));
   const server = createServer(app);
@@ -69,7 +70,7 @@ export async function createApp(opts = {}) {
     let c; do { c = Array.from({ length: 5 }, () => A[Math.floor(Math.random() * A.length)]).join(""); } while (rooms.has(c));
     return c;
   };
-  const publicUser = (u) => ({ id: u.id, username: u.username, balance: u.balance, isAdmin: u.isAdmin, supportUrl });
+  const publicUser = (u) => ({ id: u.id, publicId: u.publicId, username: u.username, balance: u.balance, isAdmin: u.isAdmin, avatarVer: u.avatarVer || 0, createdAt: u.createdAt, supportUrl });
 
   // ---------- 账号 ----------
   async function userFromToken(token) {
@@ -121,6 +122,54 @@ export async function createApp(opts = {}) {
 
   app.post("/api/logout", async (req, res, next) => { try { const t = bearer(req); if (t) await store.deleteSession(t); res.json({ ok: true }); } catch (e) { next(e); } });
   app.get("/api/me", auth, (req, res) => res.json(publicUser(req.user)));
+  // ---------- 个人中心 ----------
+  app.get("/api/me/profile", auth, async (req, res, next) => {
+    try {
+      const u = req.user; const mj = await store.slotTotals("mahjong", u.id);
+      res.json({ ...publicUser(u), poker: { handsPlayed: u.handsPlayed, handsWon: u.handsWon, best: u.pokerBest }, mahjong: { spins: mj.spins, bets: mj.bets, wins: mj.wins, best: mj.best } });
+    } catch (e) { next(e); }
+  });
+  app.post("/api/me/password", auth, async (req, res, next) => {
+    try {
+      const oldPw = String(req.body?.oldPassword || ""), newPw = String(req.body?.newPassword || "");
+      if (!(await bcrypt.compare(oldPw, req.user.passHash))) return res.status(400).json({ error: "原密码不正确" });
+      if (newPw.length < 6 || newPw.length > 72) return res.status(400).json({ error: "新密码至少 6 位" });
+      if (newPw === oldPw) return res.status(400).json({ error: "新密码不能和原密码相同" });
+      await store.updateUser(req.user.id, { passHash: await bcrypt.hash(newPw, bcryptRounds) });
+      await store.deleteUserSessions(req.user.id); // 其他设备全部退出，本机换新令牌
+      res.json({ ok: true, token: await newSession(req.user) });
+    } catch (e) { next(e); }
+  });
+  const AVATAR_MAX = 300 * 1024;
+  const magic = (b) => (b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff ? "image/jpeg" : b.slice(0, 4).toString("hex") === "89504e47" ? "image/png"
+    : b.slice(0, 4).toString() === "RIFF" && b.slice(8, 12).toString() === "WEBP" ? "image/webp" : null);
+  app.post("/api/me/avatar", auth, express.raw({ type: () => true, limit: AVATAR_MAX }), async (req, res, next) => {
+    try {
+      const buf = Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0);
+      if (buf.length < 64) return res.status(400).json({ error: "请选择一张图片" });
+      const ct = String(req.headers["content-type"] || "").split(";")[0].trim(); const real = magic(buf);
+      if (!real || !["image/jpeg", "image/png", "image/webp"].includes(ct) || ct !== real) return res.status(415).json({ error: "只支持 JPG、PNG 或 WebP 图片" });
+      const ver = await store.setAvatar(req.user.id, real, buf);
+      updateMemberAvatar(req.user.id, ver); pushMe(req.user.id);
+      res.json({ ok: true, avatarVer: ver });
+    } catch (e) { next(e); }
+  });
+  app.delete("/api/me/avatar", auth, async (req, res, next) => { try { await store.clearAvatar(req.user.id); updateMemberAvatar(req.user.id, 0); pushMe(req.user.id); res.json({ ok: true, avatarVer: 0 }); } catch (e) { next(e); } });
+  // 头像：/api/avatar/10001?v=3 ；没上传的生成默认头像（首字 + 紫金渐变）
+  app.get("/api/avatar/:pid", async (req, res, next) => {
+    try {
+      const u = await store.getUserByPublicId(Number(req.params.pid));
+      if (!u) return res.status(404).end();
+      const a = u.avatarVer ? await store.getAvatar(u.id) : null;
+      const etag = `"av${u.id}-${u.avatarVer}"`;
+      res.set("ETag", etag); res.set("Cache-Control", req.query.v != null ? "public, max-age=31536000, immutable" : "public, max-age=300");
+      if (req.headers["if-none-match"] === etag) return res.status(304).end();
+      if (a) return res.type(a.mime).send(a.data);
+      const ch = [...u.username][0] || "?"; const esc = (x) => x.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+      const hue = [270, 285, 300, 260, 315][u.publicId % 5];
+      res.type("image/svg+xml").send(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128"><defs><radialGradient id="g" cx="35%" cy="28%" r="80%"><stop offset="0" stop-color="hsl(${hue},55%,52%)"/><stop offset=".6" stop-color="hsl(${hue},60%,28%)"/><stop offset="1" stop-color="#1a0b2e"/></radialGradient><linearGradient id="t" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff3c4"/><stop offset=".55" stop-color="#f5d77a"/><stop offset="1" stop-color="#b8860b"/></linearGradient></defs><rect width="128" height="128" fill="url(#g)"/><circle cx="64" cy="64" r="58" fill="none" stroke="#d4af37" stroke-width="5"/><text x="64" y="68" text-anchor="middle" dominant-baseline="middle" font-family="PingFang SC,Noto Sans CJK SC,sans-serif" font-size="62" font-weight="800" fill="#6a4a0a" dy="3">${esc(ch.toUpperCase())}</text><text x="64" y="68" text-anchor="middle" dominant-baseline="middle" font-family="PingFang SC,Noto Sans CJK SC,sans-serif" font-size="62" font-weight="800" fill="url(#t)">${esc(ch.toUpperCase())}</text></svg>`);
+    } catch (e) { next(e); }
+  });
   app.get("/api/me/ledger", auth, async (req, res, next) => { try { res.json(await store.ledger(req.user.id, 30)); } catch (e) { next(e); } });
   app.get("/health", (_req, res) => res.json({ ok: true, rooms: rooms.size, storage: store.kind }));
   app.get("/api/rooms", (_req, res) => res.json(listRooms()));
@@ -141,7 +190,7 @@ export async function createApp(opts = {}) {
     try {
       if (req.user.balance < bet) return res.status(400).json({ error: NO_CHIPS_MSG, code: "NO_CHIPS" });
       const r = Slot.spin(bet, slotRng);
-      const label = `${MJ_NAME} 下注 ${bet}` + (r.win ? ` 赢 ${r.win}` : "") + (r.freeAwarded ? `（免费游戏 ${r.freeAwarded} 次）` : "");
+      const label = `${MJ_NAME} 下注 ${E.money(bet)}` + (r.win ? ` 赢 ${E.money(r.win)}` : "") + (r.freeAwarded ? `（免费游戏 ${r.freeAwarded} 次）` : "");
       let saved;
       try { saved = await store.slotSpin(uid, houseId, MJ, bet, r.win, r.freeAwarded, label); }
       catch (e) { if (e.message === "INSUFFICIENT") return res.status(400).json({ error: NO_CHIPS_MSG, code: "NO_CHIPS" }); throw e; }
@@ -184,6 +233,11 @@ export async function createApp(opts = {}) {
 
   function afterHand(room) {
     const g = room.g;
+    // 个人战绩：每手牌只记一次（真人且拿到了手牌）
+    if (room.statHand !== g.handNo && g.handNo > 0) {
+      room.statHand = g.handNo;
+      g.players.forEach((p, i) => { const m = room.members[i]; if (m && !m.bot && m.userId && p.hole.length === 2) track(store.addPokerStats(m.userId, g.winners.includes(i), p.won || 0)); });
+    }
     if (g.lastRake > 0 && room.rakedHand !== g.handNo) {
       room.rakedHand = g.handNo;
       track(store.adjust(houseId, g.lastRake, `抽水 房间${room.code} 第${g.handNo}手`, "system", true));
@@ -209,7 +263,7 @@ export async function createApp(opts = {}) {
 
   // ---------- 牌桌 ----------
   function parseCfg(c = {}) {
-    const start = clampInt(c.start, 100, 1000000, 1000);
+    const start = clampInt(c.start, 100, 100000000, 1000); // 单位：分（客户端会传自己的设置）
     const bb = clampInt(c.bb, 2, Math.floor(start / 5), Math.min(20, Math.floor(start / 5)));
     const sb = clampInt(c.sb, 1, bb, Math.max(1, Math.floor(bb / 2)));
     const timer = clampInt(c.timer, 10, 120, 30);
@@ -231,7 +285,7 @@ export async function createApp(opts = {}) {
         return {
           name: p.name, bot: p.bot, chips: p.chips, bet: p.bet, total: p.total, folded: p.folded, allIn: p.allIn,
           out: p.out, sitOut: p.sitOut, last: p.last, won: p.won, handName: show ? p.handName : "",
-          hole: show ? p.hole : [], cards: p.hole.length, connected: !!(m && (m.bot || m.connected)), left: !!(m && m.left),
+          hole: show ? p.hole : [], cards: p.hole.length, pid: m ? m.pid : null, av: m ? m.av : 0, connected: !!(m && (m.bot || m.connected)), left: !!(m && m.left),
         };
       }),
       legal: you >= 0 && betting(g) && g.current === you ? E.legal(g, you) : null,
@@ -241,7 +295,7 @@ export async function createApp(opts = {}) {
     };
     return {
       code: room.code, you, isHost: room.hostToken === token, cfg: room.cfg, started: !!g,
-      members: room.members.map((m, i) => ({ i, name: m.name, bot: m.bot, connected: m.bot || m.connected, left: m.left, host: m.token === room.hostToken })).filter((m) => !m.left),
+      members: room.members.map((m, i) => ({ i, name: m.name, pid: m.pid, av: m.av, bot: m.bot, connected: m.bot || m.connected, left: m.left, host: m.token === room.hostToken })).filter((m) => !m.left),
       game, deadline: room.deadline, nextAt: room.nextAt, now: Date.now(),
     };
   }
@@ -326,8 +380,11 @@ export async function createApp(opts = {}) {
     update(room);
   }
 
-  function addMember(room, { name, bot, userId, socketId }) {
-    const m = { token: bot ? "bot-" + newToken() : "u" + userId, userId: bot ? null : userId, name, bot, socketId, connected: !bot, left: false, missedHands: 0, stack: room.cfg.start };
+  function updateMemberAvatar(userId, ver) {
+    for (const r of rooms.values()) for (const m of r.members) if (m.userId === userId) { m.av = ver; update(r); }
+  }
+  function addMember(room, { name, bot, userId, socketId, pid = null, av = 0 }) {
+    const m = { token: bot ? "bot-" + newToken() : "u" + userId, userId: bot ? null : userId, pid, av, name, bot, socketId, connected: !bot, left: false, missedHands: 0, stack: room.cfg.start };
     const g = room.g;
     if (!g) { room.members.push(m); return m; }
     // 游戏中加入：两手牌之间才复用已离开的空位，避免影响本手底池
@@ -382,13 +439,13 @@ export async function createApp(opts = {}) {
       try {
         const u = await fresh(); if (!u) return ack({ ok: false, error: "账号不可用" });
         const cfg = parseCfg(data.cfg);
-        if (u.balance < cfg.start) return ack({ ok: false, error: `${NO_CHIPS_MSG}（带入需要 ${cfg.start}，你有 ${u.balance}）`, noChips: true });
+        if (u.balance < cfg.start) return ack({ ok: false, error: `${NO_CHIPS_MSG}（带入需要 ${E.money(cfg.start)}，你有 ${E.money(u.balance)}）`, noChips: true });
         const code = newCode();
         try { await store.adjust(uid, -cfg.start, `带入 房间${code}`); } catch { return ack({ ok: false, error: NO_CHIPS_MSG, noChips: true }); }
         pushMe(uid);
         const room = { code, cfg, members: [], g: null, hostToken: null, lastActive: Date.now(), created: Date.now(), emptySince: null };
         rooms.set(code, room);
-        const m = addMember(room, { name: u.username, bot: false, userId: uid, socketId: socket.id });
+        const m = addMember(room, { name: u.username, bot: false, userId: uid, socketId: socket.id, pid: u.publicId, av: u.avatarVer });
         room.hostToken = m.token; attach(room, m);
         ack({ ok: true, code });
         update(room);
@@ -408,7 +465,7 @@ export async function createApp(opts = {}) {
         if (activeMembers(room).length >= MAX_SEATS) return ack({ ok: false, error: "房间已满（最多 9 人）" });
         if (room.g && room.g.players.length >= MAX_SEATS && betting(room.g)) return ack({ ok: false, error: "暂时没有空位，请等这手牌结束再试" });
         const u = await fresh(); if (!u) return ack({ ok: false, error: "账号不可用" });
-        if (u.balance < room.cfg.start) return ack({ ok: false, error: `${NO_CHIPS_MSG}（带入需要 ${room.cfg.start}，你有 ${u.balance}）`, noChips: true });
+        if (u.balance < room.cfg.start) return ack({ ok: false, error: `${NO_CHIPS_MSG}（带入需要 ${E.money(room.cfg.start)}，你有 ${E.money(u.balance)}）`, noChips: true });
         try { await store.adjust(uid, -room.cfg.start, `带入 房间${code}`); } catch { return ack({ ok: false, error: NO_CHIPS_MSG, noChips: true }); }
         pushMe(uid);
         room = rooms.get(code);
@@ -416,7 +473,7 @@ export async function createApp(opts = {}) {
         if (!room) return refund("房间已关闭");
         if (room.members.find((x) => x.userId === uid && !x.left)) return refund("你已经在这个房间里");
         if (activeMembers(room).length >= MAX_SEATS) return refund("房间已满（最多 9 人）");
-        m = addMember(room, { name: u.username, bot: false, userId: uid, socketId: socket.id });
+        m = addMember(room, { name: u.username, bot: false, userId: uid, socketId: socket.id, pid: u.publicId, av: u.avatarVer });
         if (!m) return refund("暂时没有空位，请等这手牌结束再试");
         if (!room.hostToken) room.hostToken = m.token;
         attach(room, m);
@@ -476,7 +533,7 @@ export async function createApp(opts = {}) {
       m.rebuying = false;
       if (!rooms.has(room.code) || m.left) { credit(m, room.cfg.start, `补充失败退回 房间${room.code}`); return ack({ ok: false }); }
       p.chips += room.cfg.start; pushMe(uid);
-      room.g.log = [...room.g.log, `${p.name} 补充筹码 ${room.cfg.start}`].slice(-40);
+      room.g.log = [...room.g.log, `${p.name} 补充筹码 ${E.money(room.cfg.start)}`].slice(-40);
       ack({ ok: true }); update(room);
     });
 
@@ -518,12 +575,12 @@ export async function createApp(opts = {}) {
   aget("/users", async (req, res) => {
     const list = await store.searchUsers(String(req.query.q || ""), 100);
     const where = new Map(); for (const r of rooms.values()) for (const m of activeMembers(r)) if (m.userId) where.set(m.userId, r.code);
-    res.json(list.map((u) => ({ id: u.id, username: u.username, balance: u.balance, banned: u.banned, isAdmin: u.isAdmin, createdAt: u.createdAt, lastLogin: u.lastLogin, online: userSockets.has(u.id), room: where.get(u.id) || null })));
+    res.json(list.map((u) => ({ id: u.id, publicId: u.publicId, avatarVer: u.avatarVer, username: u.username, balance: u.balance, banned: u.banned, isAdmin: u.isAdmin, createdAt: u.createdAt, lastLogin: u.lastLogin, online: userSockets.has(u.id), room: where.get(u.id) || null })));
   });
   aget("/users/:id/ledger", async (req, res) => res.json(await store.ledger(Number(req.params.id), 100)));
   apost("/users/:id/adjust", async (req, res) => {
     const id = Number(req.params.id); const delta = Math.trunc(Number(req.body?.delta));
-    if (!delta || Math.abs(delta) > 1e9) return res.status(400).json({ error: "请输入有效的数量" });
+    if (!delta || Math.abs(delta) > 1e11) return res.status(400).json({ error: "请输入有效的数量" });
     const reason = String(req.body?.reason || "").trim().slice(0, 100) || (delta > 0 ? "管理员赠送" : "管理员扣除");
     const u = await store.getUser(id); if (!u || u.isHouse) return res.status(404).json({ error: "找不到玩家" });
     try { const bal = await store.adjust(id, delta, reason, req.user.username); pushMe(id); res.json({ ok: true, balance: bal }); }
@@ -567,7 +624,11 @@ export async function createApp(opts = {}) {
     res.json({ ok: true, settings });
   });
   app.use("/api/admin", A);
-  app.use((err, _req, res, _next) => { console.error(err); res.status(500).json({ error: "服务器出错" }); });
+  app.use((err, _req, res, _next) => {
+    if (err && err.status === 413) return res.status(413).json({ error: "图片太大，请换一张小一点的" });
+    if (err && err.status >= 400 && err.status < 500) return res.status(err.status).json({ error: "请求格式不正确" });
+    console.error(err); res.status(500).json({ error: "服务器出错" });
+  });
 
   // ---------- 清理与关机 ----------
   function sweep() {

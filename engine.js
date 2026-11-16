@@ -6,6 +6,8 @@
 const RN = ["", "", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K", "A"];
 const SU = ["♠", "♥", "♦", "♣"];
 export const rankOf = (c        ) => (c % 13) + 2;
+// 金额全部用整数“分”保存；显示时换成两位小数（1,000.00）
+export const money = (c        ) => { const neg = c < 0; const v = Math.abs(Math.round(c)); const y = Math.floor(v / 100).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ","); return (neg ? "-" : "") + y + "." + String(v % 100).padStart(2, "0"); };
 export const suitOf = (c        ) => Math.floor(c / 13);
 export const cardLabel = (c        ) => RN[rankOf(c)] + SU[suitOf(c)];
 export const rankLabel = (c        ) => RN[rankOf(c)];
@@ -87,8 +89,8 @@ export function startHand(g0      , first = false, deck           )       {
   if (alive === 2) { g.sb = g.dealer; g.bb = nextSeat(g, g.dealer, live); }
   else { g.sb = nextSeat(g, g.dealer, live); g.bb = nextSeat(g, g.sb, live); }
   g.log = [...g.log, `—— 第 ${g.handNo} 手 ——`].slice(-40);
-  put(g, g.sb, g.sbAmt); g.players[g.sb].last = `小盲 ${g.players[g.sb].bet}`;
-  put(g, g.bb, g.bbAmt); g.players[g.bb].last = `大盲 ${g.players[g.bb].bet}`;
+  put(g, g.sb, g.sbAmt); g.players[g.sb].last = `小盲 ${money(g.players[g.sb].bet)}`;
+  put(g, g.bb, g.bbAmt); g.players[g.bb].last = `大盲 ${money(g.players[g.bb].bet)}`;
   for (let r = 0; r < 2; r++) { let i = g.sb; for (let k = 0; k < alive; k++) { g.players[i].hole.push(g.deck.pop()          ); i = nextSeat(g, i, live); } }
   g.stage = "preflop"; g.currentBet = g.bbAmt; g.minRaise = g.bbAmt;
   g.current = nextSeat(g, g.bb, canAct);
@@ -119,13 +121,13 @@ export function act(g0      , a        )       {
   }
   if (type === "fold") { p.folded = true; log("弃牌"); }
   else if (type === "check") { log("过牌"); }
-  else if (type === "call") { const amt = put(g, i, L.call); log(p.allIn ? `全下跟注 ${amt}` : `跟注 ${amt}`); }
+  else if (type === "call") { const amt = put(g, i, L.call); log(p.allIn ? `全下跟注 ${money(amt)}` : `跟注 ${money(amt)}`); }
   else {
     const prev = g.currentBet; put(g, i, to - p.bet);
     const inc = p.bet - prev;
     if (inc >= g.minRaise) { g.minRaise = inc; g.players.forEach((q) => (q.acted = false)); }
     g.currentBet = Math.max(prev, p.bet);
-    log(p.allIn ? `全下 ${p.bet}` : prev === 0 ? `下注 ${p.bet}` : `加注到 ${p.bet}`);
+    log(p.allIn ? `全下 ${money(p.bet)}` : prev === 0 ? `下注 ${money(p.bet)}` : `加注到 ${money(p.bet)}`);
   }
   p.acted = true;
   return settle(g);
@@ -178,11 +180,11 @@ function finish(g      , showdown         )       {
   const uncalled = (tots[0] || 0) - (tots[1] || 0);
   const rake = g.rakePct > 0 && g.board.length >= 3 ? Math.floor(((total - uncalled) * g.rakePct) / 100) : 0;
   g.lastRake = rake;
-  if (rake > 0) g.log = [...g.log, `抽水 ${rake}`].slice(-40);
+  if (rake > 0) g.log = [...g.log, `抽水 ${money(rake)}`].slice(-40);
   if (!showdown) {
     const w = g.players.find((p) => !p.out && !p.folded)          ;
     w.chips += total - rake; w.won = total - rake; winners.add(w.id);
-    g.log = [...g.log, `${w.name} 赢得 ${total - rake}（其他人弃牌）`].slice(-40);
+    g.log = [...g.log, `${w.name} 赢得 ${money(total - rake)}（其他人弃牌）`].slice(-40);
   } else {
     const score                         = {};
     g.players.forEach((p) => { if (!p.out && !p.folded) { score[p.id] = best7([...p.hole, ...g.board]); p.handName = scoreName(score[p.id]); } });
@@ -198,8 +200,8 @@ function finish(g      , showdown         )       {
       const share = Math.floor(pt.amount / ws.length); let rem = pt.amount - share * ws.length;
       order.forEach((id) => { const add = share + (rem > 0 ? 1 : 0); if (rem > 0) rem--; g.players[id].chips += add; g.players[id].won += add; winners.add(id); });
       const label = ps.length > 1 ? (idx === 0 ? "主池" : `边池${idx}`) : "底池";
-      if (pt.eligible.length === 1) g.log = [...g.log, `${g.players[ws[0]].name} 收回 ${pt.amount}`].slice(-40);
-      else g.log = [...g.log, `${label} ${pt.amount}：${order.map((id) => g.players[id].name).join("、")} ${ws.length > 1 ? "平分" : "赢得"}（${g.players[ws[0]].handName}）`].slice(-40);
+      if (pt.eligible.length === 1) g.log = [...g.log, `${g.players[ws[0]].name} 收回 ${money(pt.amount)}`].slice(-40);
+      else g.log = [...g.log, `${label} ${money(pt.amount)}：${order.map((id) => g.players[id].name).join("、")} ${ws.length > 1 ? "平分" : "赢得"}（${g.players[ws[0]].handName}）`].slice(-40);
     });
   }
   g.winners = Array.from(winners);

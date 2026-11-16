@@ -70,7 +70,7 @@ test("麻将消消乐接口：需要登录、下注额校验、余额不足提�
   try {
     assert.equal((await api(ctx, "POST", "/api/mahjong/spin", { bet: 10 })).status, 401);
     const z = await register(ctx, "零币小王");
-    const r0 = await api(ctx, "POST", "/api/mahjong/spin", { bet: 10 }, z.token);
+    const r0 = await api(ctx, "POST", "/api/mahjong/spin", { bet: 50 }, z.token);
     assert.equal(r0.status, 400); assert.equal(r0.data.error, "余额不足，请联系客服获取游戏币");
     const p = await player(ctx, "转轴玩家", 100);
     assert.equal((await api(ctx, "POST", "/api/mahjong/spin", { bet: 7 }, p.token)).status, 400, "不在列表里的下注额");
@@ -96,7 +96,7 @@ test("麻将消消乐接口：需要登录、下注额校验、余额不足提�
     const a = await api(ctx, "GET", "/api/admin/mahjong", null, await adminToken(ctx));
     assert.equal(a.data.totals.spins, spins); assert.equal(a.data.totals.profit, bets - wins); assert.equal(a.data.top[0].username, "转轴玩家");
     // 账本里有记录
-    const led = await ctx.store.ledger(p.user.id, 5); assert.match(led[0].reason, /时烽麻将消消乐 下注 50/);
+    const led = await ctx.store.ledger(p.user.id, 5); assert.match(led[0].reason, /时烽麻将消消乐 下注 0\.50/);
   } finally { await ctx.close(); }
 });
 
