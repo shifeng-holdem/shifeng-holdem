@@ -181,6 +181,20 @@ h1{font-size:24px;margin:14px 0 4px;color:#f5d77a;text-shadow:0 1px 12px #d4af37
 .mjsplash .in{padding:24px;border-radius:20px;border:2px solid #f5d77a;background:linear-gradient(180deg,#4a1a6e,#2a0f3d);box-shadow:0 0 40px #f5d77a88}
 .mjsplash .t{font-size:26px;font-weight:900;color:#f5d77a;letter-spacing:2px}.mjsplash .n{font-size:44px;font-weight:900;color:#fff0b0;text-shadow:0 0 18px #f5d77a}
 @keyframes fi{from{opacity:0}}
+/* 声音开关 */
+.sndgrp{display:inline-flex;gap:4px;align-items:center}
+.sndgrp .snd{width:32px;height:32px;padding:0;border-radius:50%;font-size:15px;line-height:1;background:#1a0b2ecc;border:1px solid #d4af3799;position:relative;opacity:.55}
+.sndgrp .snd.on{opacity:1;box-shadow:0 0 8px #d4af3766}
+.sndgrp .snd i{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-style:normal;color:#ff8a8a;font-size:22px;font-weight:900}
+#top .sndgrp .snd{width:28px;height:28px;font-size:13px}
+/* 自动转 */
+.autogrid{display:grid;grid-template-columns:repeat(5,1fr);gap:6px}
+.autogrid button{padding:10px 0}
+.autogrid button.on{background:linear-gradient(180deg,#f5d77a,#d4af37);color:#2a1600;border-color:#fff3c4}
+.mjtools button.on{background:linear-gradient(180deg,#e04848,#9c1528);color:#fff3c4;border-color:#f5d77a}
+.spin.auto{background:radial-gradient(circle at 40% 30%,#ffb0bc,#e04864 45%,#9c1528 85%);color:#fff3c4;border-color:#ffd0d6}
+.spin span small{display:block;font-size:13px;font-weight:800;margin-top:2px}
+.spin.auto.busy span{animation:none}
 </style>
 </head>
 <body>
@@ -204,7 +218,7 @@ h1{font-size:24px;margin:14px 0 4px;color:#f5d77a;text-shadow:0 1px 12px #d4af37
 
 <!-- 游戏大厅 -->
 <div id="hall" class="wrap hidden">
-  <h1>👑 时烽游戏大厅</h1>
+  <div class="row" style="flex-wrap:nowrap;justify-content:space-between;margin-top:14px"><h1 style="flex:1;margin-top:0">👑 时烽游戏大厅</h1><span class="sndgrp" style="flex:none"></span></div>
   <div class="muted">一个账号畅玩所有游戏，余额通用。只用游戏币，不涉及真钱，游戏币不能购买或兑现。</div>
   <div class="card-box" id="acct">
     <div class="row" style="flex-wrap:nowrap;justify-content:space-between">
@@ -235,7 +249,7 @@ h1{font-size:24px;margin:14px 0 4px;color:#f5d77a;text-shadow:0 1px 12px #d4af37
 
 <!-- 时烽德州：房间列表 -->
 <div id="home" class="wrap hidden">
-  <div class="row" style="flex-wrap:nowrap;justify-content:space-between;margin-top:8px"><button class="ghost" id="btnHall1" style="flex:none;padding:6px 12px;font-size:13px">‹ 大厅</button><div class="bal" style="flex:none;font-size:17px">余额 <b id="uBal2">0</b></div></div>
+  <div class="row" style="flex-wrap:nowrap;justify-content:space-between;margin-top:8px"><button class="ghost" id="btnHall1" style="flex:none;padding:6px 12px;font-size:13px">‹ 大厅</button><div class="row" style="flex:none;gap:8px;flex-wrap:nowrap"><div class="bal" style="flex:none;font-size:17px">余额 <b id="uBal2">0</b></div><span class="sndgrp"></span></div></div>
   <h1>♠ 时烽德州</h1>
   <div class="muted">和朋友实时对战，最多 9 人一桌。只用游戏筹码，不涉及真钱。</div>
   <div class="card-box" id="roomsBox">
@@ -263,7 +277,7 @@ h1{font-size:24px;margin:14px 0 4px;color:#f5d77a;text-shadow:0 1px 12px #d4af37
 
 <!-- 等待大厅 -->
 <div id="lobby" class="wrap hidden">
-  <div class="row" style="justify-content:space-between"><h1 style="flex:none">房间</h1><button class="ghost" id="btnLeave1" style="flex:none">离开</button></div>
+  <div class="row" style="justify-content:space-between"><h1 style="flex:none">房间</h1><div class="row" style="flex:none;gap:6px;flex-wrap:nowrap"><span class="sndgrp"></span><button class="ghost" id="btnLeave1" style="flex:none">离开</button></div></div>
   <div class="card-box" style="text-align:center">
     <div class="muted">房间码</div>
     <div class="code" id="lCode"></div>
@@ -282,7 +296,7 @@ h1{font-size:24px;margin:14px 0 4px;color:#f5d77a;text-shadow:0 1px 12px #d4af37
 <!-- 牌桌 -->
 <div id="game" class="hidden">
   <div id="top"><span>房间 <b id="gCode"></b></span><span id="gBlind" class="muted"></span>
-    <span class="row" style="flex:0 0 auto;gap:4px"><button class="ghost" id="btnInvite">邀请</button><button class="ghost" id="btnBot2">＋电脑</button><button class="ghost" id="btnSit">暂离</button><button class="ghost" id="btnLeave2">离开</button></span></div>
+    <span class="row" style="flex:0 0 auto;gap:4px"><button class="ghost" id="btnInvite">邀请</button><button class="ghost" id="btnBot2">＋电脑</button><button class="ghost" id="btnSit">暂离</button><button class="ghost" id="btnLeave2">离开</button><span class="sndgrp"></span></span></div>
   <div id="table"><div id="felt"></div><div id="center"><div id="pot"></div><div id="board"></div><div id="stage"></div></div></div>
   <div id="me">
     <div id="myrow"><div id="mycards"></div><div id="myinfo"><div id="myhand"></div><div id="mychips" class="muted"></div></div></div>
@@ -293,7 +307,7 @@ h1{font-size:24px;margin:14px 0 4px;color:#f5d77a;text-shadow:0 1px 12px #d4af37
 
 <!-- 时烽麻将消消乐 -->
 <div id="mj" class="hidden">
-  <div class="mjtop"><button class="ghost" id="btnHall2">‹ 大厅</button><div class="mjtitle">时烽麻将消消乐</div><button class="ghost" id="mjRulesBtn">玩法</button></div>
+  <div class="mjtop"><button class="ghost" id="btnHall2">‹ 大厅</button><div class="mjtitle">时烽麻将消消乐</div><div class="row" style="flex:none;gap:5px;flex-wrap:nowrap"><button class="ghost" id="mjRulesBtn">玩法</button><span class="sndgrp"></span></div></div>
   <div class="mjboard">
     <div class="mjfree hidden" id="mjFree">免费游戏 <b id="mjFreeN">0</b> / <b id="mjFreeT">0</b></div>
     <div class="mults" id="mjMults"></div>
@@ -305,7 +319,7 @@ h1{font-size:24px;margin:14px 0 4px;color:#f5d77a;text-shadow:0 1px 12px #d4af37
     <div class="betsel"><button id="mjMinus">－</button><div class="betv"><div class="l">下注</div><div class="v" id="mjBet">100</div></div><button id="mjPlus">＋</button></div>
     <button class="spin" id="mjSpin" aria-label="开始"><span>开始</span></button>
   </div>
-  <div class="row mjtools"><button class="ghost" id="mjFast">⚡ 极速：关</button><button class="ghost" id="mjHistBtn">📜 记录</button></div>
+  <div class="row mjtools"><button class="ghost" id="mjAutoBtn">🔁 自动</button><button class="ghost" id="mjFast">⚡ 极速：关</button><button class="ghost" id="mjHistBtn">📜 记录</button></div>
   <div id="mjNoChips" class="nochips hidden" style="max-width:520px;margin:8px auto">💬 余额不足，请联系客服获取游戏币<button class="blue" id="mjSupport" style="width:100%;margin-top:8px">联系客服</button></div>
   <div class="mjmodal hidden" id="mjModal"><div class="mjsheet"><div class="row" style="justify-content:space-between;flex-wrap:nowrap"><h2 style="flex:none;margin:0" id="mjModalT"></h2><button class="ghost" style="flex:none;padding:4px 12px" id="mjModalX">关闭</button></div><div id="mjModalB"></div></div></div>
   <div class="mjsplash hidden" id="mjSplash"></div>
@@ -339,6 +353,8 @@ function show(id) {
   for (const x of ["auth", "hall", "home", "mj", "lobby", "game"]) $(x).classList.toggle("hidden", x !== id);
   if (id === "hall") hallMeta();
   if (id === "mj" && window.mjEnter) window.mjEnter();
+  if (id !== "mj" && window.mjStopAuto) window.mjStopAuto(null);
+  if (window.SFX) SFX.area(id === "mj" ? "mj" : id === "home" || id === "lobby" || id === "game" ? "poker" : "hall");
   if (id === "home" && !watching && socket.connected) { watching = true; socket.emit("watchRooms", renderRooms); }
   else if (id !== "home" && watching) { watching = false; socket.emit("unwatchRooms"); }
 }
@@ -477,7 +493,21 @@ socket.on("connect", () => {
   else if (!code) show(homeView);
 });
 socket.on("toast", toast);
-socket.on("state", (s) => { S = s; offset = s.now - Date.now(); code = s.code; render(); });
+socket.on("state", (s) => { const prev = S; S = s; offset = s.now - Date.now(); code = s.code; pokerSounds(prev, s); render(); });
+// 德州音效：比较前后两个状态
+let lastTick = -1;
+function pokerSounds(a, b) {
+  if (!window.SFX || !b || !b.game) return;
+  const g = b.game, o = a && a.game && a.code === b.code ? a.game : null;
+  if (!o || g.handNo !== o.handNo) { if (g.stage === "preflop") SFX.deal(); return; }
+  if (g.board.length > o.board.length) SFX.deal();
+  g.players.forEach((p, i) => {
+    const q = o.players[i]; if (!q || p.last === q.last || !p.last) return;
+    if (/弃/.test(p.last)) SFX.fold(); else if (/过/.test(p.last)) SFX.check(); else if (!/盲/.test(p.last)) SFX.chip();
+  });
+  const ended = (x) => x.stage === "handover" || x.stage === "gameover";
+  if (ended(g) && !ended(o)) setTimeout(() => SFX.win(), 250);
+}
 
 function render() {
   if (!S) return;
@@ -595,7 +625,7 @@ function act(type) {
 setInterval(() => {
   if (!S || !S.started) return;
   document.querySelectorAll(".tbar").forEach((b) => { const left = Math.max(0, +b.dataset.dl - Date.now() - offset); b.style.width = (left / (S.cfg.timer * 1000)) * 100 + "%"; });
-  const s = $("secs"); if (s && S.deadline) s.textContent = Math.max(0, Math.ceil((S.deadline - Date.now() - offset) / 1000));
+  const s = $("secs"); if (s && S.deadline) { const sec = Math.max(0, Math.ceil((S.deadline - Date.now() - offset) / 1000)); s.textContent = sec; if (sec <= 5 && sec > 0 && sec !== lastTick && window.SFX) { lastTick = sec; SFX.tick(); } }
   if (S.game && S.game.stage === "handover" && S.nextAt) { const g = S.game; if (!raiseOpen) renderActions(); }
 }, 500);
 // 启动：有登录令牌就验证并连接，否则显示登录页
@@ -606,6 +636,8 @@ setInterval(() => {
   } else { authToken = ""; localStorage.removeItem("sf_token"); show("auth"); }
 })();
 </script>
+<script src="/sound.js"></script>
+<script src="/mj-auto.js"></script>
 <script src="/mahjong.js"></script>
 </body>
 </html>

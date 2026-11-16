@@ -132,3 +132,7 @@ scripts/build-engine.cjs  修改 engine.ts 后重新生成 engine.js（需 Node 
   - 每局记录在 `slot_spins` 表；玩家可在游戏里看“记录”，庄家后台“麻将”页可看总局数、总下注、总派彩、庄家盈亏和最近记录。
 
 接口：`GET /api/mahjong/config`、`POST /api/mahjong/spin {bet}`、`GET /api/mahjong/history`、`GET /api/admin/mahjong`（管理员）。
+
+### 自动转 & 声音
+- 麻将消消乐“🔁 自动”：10 / 30 / 50 / 100 / 无限次，可选“单次赢超过 X”“余额低于 Y”时停止；余额不足、出错、离开页面自动停止。每一局都单独请求一次 `/api/mahjong/spin`（判断逻辑在 `public/mj-auto.js`）。
+- 声音（`public/sound.js`）：大厅、德州、麻将各一首原创五声音阶背景音乐，全部用 Web Audio API 现场合成，没有音频文件；德州发牌/下注/过牌/弃牌/赢牌/倒计时，麻将转动/停轴/连消（音高随倍数升高）/中奖/大赢/免费游戏音效。右上角 🎵/🔊 分别开关音乐和音效（记在本机）；第一次点击屏幕后才开始发声（iOS 兼容）。

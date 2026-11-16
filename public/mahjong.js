@@ -51,7 +51,7 @@
     $("mjMinus").disabled = busy || betIdx === 0; $("mjPlus").disabled = busy || betIdx === bets().length - 1;
   }
   function updateNoChips() { $("mjNoChips").classList.toggle("hidden", !(me && me.balance < bet()) || busy); }
-  function setBusy(b) { busy = b; hurry = false; $("mjSpin").classList.toggle("busy", b); $("mjSpin").querySelector("span").textContent = b ? "✦" : "开始"; updateBet(); updateNoChips(); }
+  function setBusy(b) { busy = b; hurry = false; $("mjSpin").classList.toggle("busy", b); if (!auto) $("mjSpin").querySelector("span").textContent = b ? "✦" : "开始"; updateBet(); updateNoChips(); }
   const randomFace = () => { const k = ["fa", "zhong", "bai", "wan", "tong5", "tiao5", "tong2", "tiao2"]; return Array.from({ length: 5 }, (_, r) => Array.from({ length: 4 }, (_, i) => (r === 2 && i === 1 ? "wild" : k[(r * 3 + i * 5) % k.length]))); };
 
   async function loadCfg() {
@@ -72,14 +72,14 @@
     for (let k = 0; k < steps.length; k++) {
       const st = steps[k];
       setMults(mults, k, free);
-      if (k === 0) { drawGrid(st.grid, { all: true }); await sleep(520); }
+      if (k === 0) { drawGrid(st.grid, { all: true }); reelSounds(); await sleep(520); }
       if (!st.wins.length) break;
       const cells = st.wins.flatMap((w) => w.cells);
-      drawGrid(st.grid, { win: cells });
+      drawGrid(st.grid, { win: cells }); snd("cascade", st.mult);
       const v = Math.round((betAmt * st.units) / 100); won += v;
       setWin(carry + won, st.mult > 1 ? `连消 x${st.mult}` : "赢得", st.mult >= 5);
       await sleep(820);
-      drawGrid(st.grid, { win: cells, pop: true });
+      drawGrid(st.grid, { win: cells, pop: true }); snd("pop");
       await sleep(300);
       // 计算每轴补了几张（用于下落动画）
       const next = steps[k + 1].grid; const fresh = st.grid.map((col, r) => cells.filter(([rr]) => rr === r).length);
@@ -88,6 +88,8 @@
     }
     return won;
   }
+  const snd = (k, a) => { try { window.SFX && SFX[k](a); } catch (e) {} };
+  const reelSounds = () => { const d = hurry ? 15 : fast ? 40 : 90; for (let r = 0; r < 5; r++) setTimeout(() => snd("reelStop", r), 180 + r * d); };
   function splash(html, ms) {
     return new Promise((res) => {
       const el = $("mjSplash"); el.innerHTML = `<div class="in">${html}</div>`; el.classList.remove("hidden");
@@ -96,24 +98,24 @@
     });
   }
 
-  async function doSpin() {
-    if (busy) { hurry = true; return; } // 转动中再点一下：加速播放
+  // 播放一局（一次请求 /api/mahjong/spin）；返回 { ok, win, balance, error }
+  async function spinOnce() {
     const b = bet();
-    if (!me || me.balance < b) { updateNoChips(); return toast("余额不足，请联系客服获取游戏币"); }
-    setBusy(true); localStorage.setItem("mj_bet", b);
+    if (!me || me.balance < b) { updateNoChips(); toast("余额不足，请联系客服获取游戏币"); return { ok: false, error: "NO_CHIPS" }; }
+    setBusy(true); localStorage.setItem("mj_bet", b); snd("spin");
     const before = me.balance; setBal(before - b); setWin(0, "转动中…");
     let r;
     try {
       const resp = await fetch("/api/mahjong/spin", { method: "POST", headers: { "content-type": "application/json", authorization: "Bearer " + authToken }, body: JSON.stringify({ bet: b }) });
       r = await resp.json().catch(() => ({}));
-      if (!resp.ok) { setBal(before); setBusy(false); setWin(0, ""); if (r.code === "NO_CHIPS") { me.balance = Math.min(me.balance, b - 1); updateNoChips(); } return toast(r.error || "出错了，请重试"); }
-    } catch (e) { setBal(before); setBusy(false); return toast("网络不稳定，请重试"); }
+      if (!resp.ok) { setBal(before); setBusy(false); setWin(0, ""); if (r.code === "NO_CHIPS") { me.balance = Math.min(me.balance, b - 1); updateNoChips(); } toast(r.error || "出错了，请重试"); return { ok: false, error: r.code || "HTTP_" + resp.status }; }
+    } catch (e) { setBal(before); setBusy(false); toast("网络不稳定，请重试"); return { ok: false, error: "NETWORK" }; }
     try {
       const baseMults = cfg ? cfg.baseMults : [1, 2, 3, 5], freeMults = cfg ? cfg.freeMults : [2, 4, 6, 10];
       let total = await playSteps(r.base.steps, baseMults, false, b, 0);
       setBal(before - b + total);
       if (r.freeAwarded) {
-        await sleep(400);
+        await sleep(400); snd("freeSpins");
         await splash(`<div class="t">🀄 集齐 ${r.base.scatters} 个「胡」</div><div class="muted" style="margin:8px 0">恭喜获得免费游戏</div><div class="n">${r.freeAwarded} 次</div><div class="muted">连消倍数 x2 → x4 → x6 → x10</div>`, 2200);
         let totalFree = r.freeAwarded - r.free.reduce((a, f) => a + f.extra, 0);
         $("mjFree").classList.remove("hidden");
@@ -130,12 +132,61 @@
       }
       setMults(baseMults, 0, false);
       const x = r.win / b;
-      setWin(r.win, r.win ? (x >= 20 ? "🎉 超级大赢" : x >= 8 ? "大赢" : "本局赢得") : "未中奖，再来一次", x >= 8);
+      setWin(r.win, r.win ? (x >= 20 ? "🎉 超级大赢" : x >= 8 ? "大赢" : "本局赢得") : (auto ? "未中奖" : "未中奖，再来一次"), x >= 8);
+      if (x >= 8) snd("bigWin"); else if (r.win > 0) snd("mjWin");
     } finally {
       me.balance = r.balance; setBal(r.balance); $("uBal").textContent = $("uBal2").textContent = fmt(r.balance);
       setBusy(false);
     }
+    return { ok: true, win: r.win, balance: r.balance };
   }
+
+  // ---- 自动转：每局依次调用一次服务器 /spin，不做批量 ----
+  let auto = null;
+  function renderAuto() {
+    const sp = $("mjSpin"), ab = $("mjAutoBtn");
+    sp.classList.toggle("auto", !!auto); ab.classList.toggle("on", !!auto);
+    if (auto) { sp.querySelector("span").innerHTML = `停止<small>${MJAuto.label(auto)}</small>`; ab.textContent = `🔁 剩 ${MJAuto.label(auto)}`; }
+    else { if (!busy) sp.querySelector("span").textContent = "开始"; ab.textContent = "🔁 自动"; }
+  }
+  function stopAuto(reason) { if (!auto) return; auto = null; renderAuto(); if (reason) toast(reason); }
+  async function runAuto(a) {
+    const why = MJAuto.canStart({ balance: me ? me.balance : 0, bet: bet() }); if (why) { updateNoChips(); return toast(why); }
+    auto = a; renderAuto();
+    while (auto === a) {
+      MJAuto.consume(a); renderAuto();
+      const r = await spinOnce();
+      if (auto !== a) break;
+      const reason = MJAuto.afterSpin(a, { balance: me ? me.balance : 0, bet: bet(), win: r.win || 0, error: !r.ok, hidden: document.hidden, left: $("mj").classList.contains("hidden") });
+      if (reason) { stopAuto(r.ok ? reason : null); break; }
+      renderAuto(); await sleep(fast ? 200 : 450);
+      if (auto === a && ($("mj").classList.contains("hidden") || document.hidden)) { stopAuto("已离开游戏，自动已停止"); break; }
+    }
+    renderAuto();
+  }
+  function openAutoSheet() {
+    if (auto) return stopAuto("自动已停止");
+    if (busy) return;
+    const last = JSON.parse(localStorage.getItem("mj_auto") || "{}");
+    modal("自动转", `<div class="muted">每一局都单独向服务器结算，触发的免费游戏会自动玩完。点“停止”或离开页面随时结束。</div>
+      <label>次数</label><div class="autogrid">${MJAuto.COUNTS.map((c) => `<button class="${(last.count ?? 10) === (c === Infinity ? -1 : c) ? "on" : ""}" data-c="${c === Infinity ? -1 : c}">${c === Infinity ? "无限" : c}</button>`).join("")}</div>
+      <label>单次赢超过（可选，0 = 不限）</label><input id="mjAWin" type="number" inputmode="numeric" min="0" value="${last.winOver || ""}" placeholder="例如 5000">
+      <label>余额低于（可选，0 = 不限）</label><input id="mjABal" type="number" inputmode="numeric" min="0" value="${last.balUnder || ""}" placeholder="例如 1000">
+      <div class="muted" style="margin-top:6px">当前下注 ${fmt(bet())} · 余额不足、出错或离开页面时会自动停止</div>
+      <button class="pri" id="mjAGo" style="width:100%;margin-top:12px">开始自动转</button>`);
+    let pick = last.count ?? 10;
+    document.querySelectorAll(".autogrid button").forEach((b) => b.onclick = () => { pick = +b.dataset.c; document.querySelectorAll(".autogrid button").forEach((x) => x.classList.toggle("on", x === b)); });
+    $("mjAGo").onclick = () => {
+      const opt = { winOver: +$("mjAWin").value || 0, balUnder: +$("mjABal").value || 0 };
+      localStorage.setItem("mj_auto", JSON.stringify({ count: pick, ...opt }));
+      $("mjModal").classList.add("hidden");
+      runAuto(MJAuto.create(pick === -1 ? Infinity : pick, opt));
+    };
+  }
+  document.addEventListener("visibilitychange", () => { if (document.hidden) stopAuto(null); });
+  window.addEventListener("pagehide", () => stopAuto(null));
+  window.mjStopAuto = stopAuto;
+  window.mjAuto = () => auto;
 
   // ---- 玩法与记录 ----
   function modal(title, html) { $("mjModalT").textContent = title; $("mjModalB").innerHTML = html; $("mjModal").classList.remove("hidden"); }
@@ -160,11 +211,12 @@
     } catch (e) { toast("读取记录失败"); }
   };
 
-  $("mjSpin").onclick = doSpin;
+  $("mjSpin").onclick = () => { if (auto) return stopAuto("自动已停止"); if (busy) { hurry = true; return; } spinOnce(); };
+  $("mjAutoBtn").onclick = openAutoSheet;
   $("mjMinus").onclick = () => { if (!busy && betIdx > 0) { betIdx--; updateBet(); updateNoChips(); } };
   $("mjPlus").onclick = () => { if (!busy && betIdx < bets().length - 1) { betIdx++; updateBet(); updateNoChips(); } };
   const fastLbl = () => ($("mjFast").textContent = `⚡ 极速：${fast ? "开" : "关"}`);
   $("mjFast").onclick = () => { fast = !fast; localStorage.setItem("mj_fast", fast ? "1" : "0"); fastLbl(); }; fastLbl();
   $("mjSupport").onclick = () => contactSupport();
-  $("btnHall2").onclick = () => { if (busy) { hurry = true; return toast("本局结算中，马上就好"); } show("hall"); };
+  $("btnHall2").onclick = () => { stopAuto(null); if (busy) { hurry = true; return toast("本局结算中，马上就好"); } show("hall"); };
 })();
