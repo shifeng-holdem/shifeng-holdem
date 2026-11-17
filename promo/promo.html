@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>时烽德州 推广图</title>
+<style>
+  @font-face{font-family:"Noto Serif SC";src:local("Noto Serif CJK SC");font-weight:400 900;font-display:block}
+  @font-face{font-family:"Noto Sans SC";src:local("Noto Sans CJK SC");font-weight:400 900;font-display:block}
+
+  :root{
+    --gold:#d4af37;
+    --gold2:#f5d77a;
+    --gold3:#fff3c4;
+    --ink:#f6f0ff;
+    --mute:#ead9a4;
+    --deep:#140822;
+    --royal:#3b1466;
+    --ame:#5b2a86;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{background:#0a0612;color:var(--ink)}
+  body{font-family:"Noto Sans SC","Noto Sans CJK SC",sans-serif}
+
+  .board{
+    position:relative;
+    overflow:hidden;
+    background:
+      radial-gradient(ellipse 90% 55% at 50% -5%, rgba(212,175,55,.20), transparent 58%),
+      radial-gradient(ellipse 70% 45% at 50% 100%, rgba(91,42,134,.45), transparent 70%),
+      radial-gradient(circle at 12% 22%, rgba(91,42,134,.38), transparent 32%),
+      radial-gradient(circle at 88% 78%, rgba(59,20,102,.45), transparent 36%),
+      radial-gradient(circle at 70% 18%, rgba(245,215,122,.08), transparent 24%),
+      linear-gradient(180deg, #2c1454 0%, #1a0b2e 42%, #11081e 100%);
+    color:var(--ink);
+  }
+  .suits{
+    position:absolute;inset:0;pointer-events:none;z-index:0;opacity:.07;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180' viewBox='0 0 180 180'><g fill='%23f5d77a'><text x='20' y='48' font-size='28'>♠</text><text x='110' y='90' font-size='24'>♥</text><text x='40' y='150' font-size='22'>♣</text><text x='130' y='30' font-size='20'>♦</text></g></svg>");
+    background-size:180px 180px;
+  }
+  .grain{
+    position:absolute;inset:0;pointer-events:none;z-index:1;
+    background:url("assets/grain.png") repeat;
+    opacity:.07;mix-blend-mode:overlay;
+  }
+  .vignette{
+    position:absolute;inset:0;pointer-events:none;z-index:8;
+    background:radial-gradient(ellipse 75% 70% at 50% 45%, transparent 55%, rgba(8,4,16,.55) 100%);
+  }
+  .frame{
+    position:absolute;inset:26px;z-index:9;pointer-events:none;
+    border:1px solid rgba(212,175,55,.62);
+    box-shadow:inset 0 0 0 1px rgba(245,215,122,.18), 0 0 0 1px rgba(212,175,55,.18);
+  }
+  .corner{position:absolute;width:92px;height:92px;z-index:10;pointer-events:none;background:url("assets/corner.svg") no-repeat center / contain}
+  .c-tl{top:32px;left:32px}
+  .c-tr{top:32px;right:32px;transform:scaleX(-1)}
+  .c-bl{bottom:32px;left:32px;transform:scaleY(-1)}
+  .c-br{bottom:32px;right:32px;transform:scale(-1)}
+
+  .content{position:relative;z-index:5;width:100%;height:100%}
+
+  .gold-text{
+    background:linear-gradient(180deg,#fff8dd 0%,#fff3c4 18%,#f5d77a 46%,#d4af37 68%,#8a6a1a 100%);
+    -webkit-background-clip:text;background-clip:text;color:transparent;
+    filter:drop-shadow(0 2px 0 rgba(60,36,0,.65)) drop-shadow(0 0 22px rgba(212,175,55,.35));
+  }
+  .title{
+    font-family:"Noto Serif SC","Noto Serif CJK SC",serif;
+    font-weight:700;letter-spacing:.16em;line-height:1.05;
+  }
+  .tagline{
+    font-family:"Noto Serif SC","Noto Serif CJK SC",serif;
+    color:var(--mute);letter-spacing:.42em;font-weight:500;
+  }
+  .sub{
+    color:rgba(246,240,255,.78);letter-spacing:.18em;
+  }
+
+  /* devices */
+  .device{position:absolute;width:var(--w);z-index:1}
+  .bezel{
+    position:relative;
+    border-radius:calc(var(--w)*0.13);
+    padding:7px;
+    background:linear-gradient(155deg,#fff3c4 0%,#d4af37 18%,#6a5420 40%,#1a1208 52%,#8a6a1a 72%,#f5d77a 100%);
+    box-shadow:
+      0 28px 50px rgba(0,0,0,.50),
+      0 8px 18px rgba(0,0,0,.35),
+      0 0 0 1px rgba(245,215,122,.25),
+      inset 0 1px 0 rgba(255,243,196,.55);
+  }
+  .screen{
+    border-radius:calc(var(--w)*0.112);
+    overflow:hidden;background:#1a0b2e;
+    aspect-ratio:780/1688;position:relative;
+  }
+  .screen img{width:100%;height:100%;object-fit:cover;object-position:top center;display:block}
+  .bezel::after{
+    content:"";position:absolute;inset:7px;border-radius:calc(var(--w)*0.112);
+    pointer-events:none;
+    background:linear-gradient(115deg,rgba(255,255,255,.16) 0%,rgba(255,255,255,.04) 18%,transparent 42%);
+  }
+  .device.tilt-l{transform:rotate(-10.5deg)}
+  .device.tilt-r{transform:rotate(10.5deg)}
+  .device.front{z-index:3}
+  .device.mid{z-index:2}
+
+  /* game pills */
+  .pills{display:flex;flex-wrap:wrap;gap:10px 10px;justify-content:center}
+  .pill{
+    display:inline-flex;align-items:center;justify-content:center;
+    padding:7px 16px 8px;
+    border:1px solid rgba(212,175,55,.55);
+    border-radius:999px;
+    background:linear-gradient(180deg,rgba(91,42,134,.55),rgba(20,8,34,.72));
+    box-shadow:0 2px 0 rgba(0,0,0,.25), inset 0 1px 0 rgba(255,243,196,.12);
+    color:#f5d77a;
+    font-weight:700;letter-spacing:.12em;white-space:nowrap;
+  }
+
+  .invite{
+    text-align:center;
+    border-radius:14px;
+    background:linear-gradient(180deg,rgba(212,175,55,.20),rgba(212,175,55,.06));
+    border:1px solid rgba(245,215,122,.48);
+    box-shadow:inset 0 1px 0 rgba(255,243,196,.22), 0 8px 20px rgba(0,0,0,.18);
+    color:#fff8dd;
+  }
+  .invite b{color:#fff3c4;font-weight:800}
+
+  .qr-wrap{
+    display:flex;align-items:center;
+  }
+  .qr-card{
+    background:#fff8e7;border-radius:16px;padding:8px;
+    border:1px solid var(--gold);
+    box-shadow:0 8px 20px rgba(0,0,0,.28), 0 0 0 3px rgba(212,175,55,.18);
+    flex-shrink:0;
+  }
+  .qr-card img{display:block;width:100%;height:100%}
+  .url{
+    font-family:"Noto Sans SC","Noto Sans CJK SC",sans-serif;
+    color:var(--gold2);font-weight:700;letter-spacing:.02em;word-break:break-all;
+  }
+  .cta{color:#fff8dd;font-weight:800;letter-spacing:.2em}
+  .footer{
+    text-align:center;color:rgba(234,217,164,.48);
+    letter-spacing:.14em;font-weight:500;
+  }
+
+  /* ========== POSTER 1080x1920 ========== */
+  #poster{width:1080px;height:1920px}
+  #poster .frame{border-radius:6px}
+  #poster .header{
+    position:absolute;left:0;right:0;top:72px;
+    display:flex;flex-direction:column;align-items:center;
+  }
+  #poster .logo{width:128px;height:128px;border-radius:28px;
+    box-shadow:0 10px 28px rgba(0,0,0,.4), 0 0 0 2px rgba(212,175,55,.55), 0 0 24px rgba(212,175,55,.28);
+  }
+  #poster .title{font-size:92px;margin-top:22px;padding-left:.16em}
+  #poster .tagline{font-size:28px;margin-top:14px;padding-left:.42em}
+  #poster .sub{font-size:18px;margin-top:14px}
+  #poster .rule{
+    width:220px;height:1px;margin-top:16px;
+    background:linear-gradient(90deg,transparent,rgba(212,175,55,.8),transparent);
+  }
+  #poster .cluster{position:absolute;left:0;right:0;top:430px;height:980px}
+  #poster .games{position:absolute;left:80px;right:80px;top:1418px}
+  #poster .games .label{
+    text-align:center;color:var(--gold2);font-family:"Noto Serif SC","Noto Serif CJK SC",serif;
+    letter-spacing:.36em;font-size:20px;margin-bottom:14px;padding-left:.36em;
+  }
+  #poster .pill{font-size:22px;padding:8px 18px 9px}
+  #poster .invite{position:absolute;left:100px;right:100px;top:1608px;padding:16px 20px 18px}
+  #poster .invite .l1{font-size:26px;letter-spacing:.14em;font-weight:800}
+  #poster .invite .l2{font-size:18px;letter-spacing:.18em;margin-top:4px;color:rgba(255,243,196,.8)}
+  #poster .qr-wrap{position:absolute;left:100px;right:100px;top:1724px;gap:22px;justify-content:center}
+  #poster .qr-card{width:112px;height:112px;padding:6px;border-radius:14px}
+  #poster .cta{font-size:22px}
+  #poster .url{font-size:22px;margin-top:4px}
+  #poster .hint{font-size:15px;color:rgba(234,217,164,.7);margin-top:4px;letter-spacing:.12em}
+  #poster .footer{position:absolute;left:80px;right:80px;bottom:44px;font-size:16px;color:rgba(234,217,164,.62)}
+
+  /* ========== SQUARE 1080x1080 ========== */
+  #square{width:1080px;height:1080px}
+  #square .frame{inset:22px}
+  #square .corner{width:78px;height:78px}
+  #square .c-tl{top:26px;left:26px}
+  #square .c-tr{top:26px;right:26px}
+  #square .c-bl{bottom:26px;left:26px}
+  #square .c-br{bottom:26px;right:26px}
+  #square .left{position:absolute;left:68px;top:68px;width:460px;bottom:58px;display:flex;flex-direction:column;justify-content:space-between}
+  #square .logo-row{display:flex;align-items:center;gap:16px}
+  #square .logo{width:86px;height:86px;border-radius:20px;
+    box-shadow:0 8px 20px rgba(0,0,0,.4), 0 0 0 2px rgba(212,175,55,.55)}
+  #square .title{font-size:58px;padding-left:.12em;line-height:1.1}
+  #square .tagline{font-size:20px;margin-top:16px;letter-spacing:.28em;padding-left:.28em}
+  #square .sub{font-size:16px;margin-top:10px;letter-spacing:.16em}
+  #square .games{margin:0}
+  #square .games .label{
+    color:var(--gold2);font-family:"Noto Serif SC","Noto Serif CJK SC",serif;
+    letter-spacing:.28em;font-size:16px;margin-bottom:12px;
+  }
+  #square .pills{justify-content:flex-start;gap:8px}
+  #square .pills + .pills{margin-top:8px}
+  #square .pill{font-size:17px;padding:6px 13px 7px;letter-spacing:.08em}
+  #square .invite{margin:0;padding:12px 16px 14px;text-align:left}
+  #square .invite .l1{font-size:20px;letter-spacing:.08em;font-weight:800}
+  #square .invite .l2{font-size:15px;letter-spacing:.1em;margin-top:3px;color:rgba(255,243,196,.8)}
+  #square .qr-wrap{margin-top:16px;gap:16px;align-items:center}
+  #square .qr-card{width:100px;height:100px;padding:5px;border-radius:12px}
+  #square .cta{font-size:18px}
+  #square .url{font-size:16px;margin-top:3px}
+  #square .hint{font-size:13px;color:rgba(234,217,164,.7);margin-top:3px;letter-spacing:.1em}
+  #square .footer{position:static;width:auto;font-size:13px;text-align:left;letter-spacing:.08em;color:rgba(234,217,164,.62)}
+  #square .cluster{position:absolute;right:28px;top:150px;width:520px;height:880px}
+
+  /* ========== BANNER 1200x628 ========== */
+  #banner{width:1200px;height:628px}
+  #banner .frame{inset:16px}
+  #banner .corner{width:64px;height:64px}
+  #banner .c-tl{top:20px;left:20px}
+  #banner .c-tr{top:20px;right:20px}
+  #banner .c-bl{bottom:20px;left:20px}
+  #banner .c-br{bottom:20px;right:20px}
+  #banner .left{position:absolute;left:48px;top:42px;width:560px}
+  #banner .logo-row{display:flex;align-items:center;gap:14px}
+  #banner .logo{width:68px;height:68px;border-radius:16px;
+    box-shadow:0 6px 16px rgba(0,0,0,.4), 0 0 0 2px rgba(212,175,55,.55)}
+  #banner .title{font-size:48px;padding-left:.1em}
+  #banner .tagline{font-size:18px;margin-top:8px;letter-spacing:.32em;padding-left:.32em}
+  #banner .sub{font-size:14px;margin-top:6px;letter-spacing:.16em}
+  #banner .games{margin-top:16px}
+  #banner .pills{justify-content:flex-start;gap:6px}
+  #banner .pill{font-size:14px;padding:4px 11px 5px;letter-spacing:.08em}
+  #banner .invite{margin-top:14px;padding:9px 14px 10px;text-align:left;border-radius:10px}
+  #banner .invite .l1{font-size:17px;letter-spacing:.08em;font-weight:800}
+  #banner .qr-wrap{margin-top:14px;gap:14px}
+  #banner .qr-card{width:86px;height:86px;padding:4px;border-radius:10px}
+  #banner .cta{font-size:16px}
+  #banner .url{font-size:16px;margin-top:2px}
+  #banner .hint{font-size:12px;color:rgba(234,217,164,.7);margin-top:2px;letter-spacing:.08em}
+  #banner .footer{position:static;width:auto;margin-top:14px;font-size:12px;text-align:left;letter-spacing:.08em;color:rgba(234,217,164,.62)}
+  #banner .cluster{position:absolute;right:36px;top:44px;width:540px;height:540px}
+</style>
+</head>
+<body>
+
+<!-- ===================== POSTER ===================== -->
+<section class="board" id="poster">
+  <div class="suits"></div>
+  <div class="grain"></div>
+  <div class="vignette"></div>
+  <div class="frame"></div>
+  <div class="corner c-tl"></div>
+  <div class="corner c-tr"></div>
+  <div class="corner c-bl"></div>
+  <div class="corner c-br"></div>
+
+  <div class="content">
+    <header class="header">
+      <img class="logo" src="assets/logo.png" alt="时烽德州">
+      <h1 class="title gold-text">时烽德州</h1>
+      <p class="tagline">紫晶为席，以牌会友</p>
+      <div class="rule"></div>
+      <p class="sub">七款经典玩法　·　多人在线对战</p>
+    </header>
+
+    <div class="cluster">
+      <figure class="device tilt-l mid" style="--w:348px;left:42px;top:86px">
+        <div class="bezel"><div class="screen"><img src="../shots/mahjong-3d-portrait.png" alt="麻将胡了"></div></div>
+      </figure>
+      <figure class="device tilt-r mid" style="--w:348px;right:42px;top:86px">
+        <div class="bezel"><div class="screen"><img src="../shots/game-baccarat-portrait.png" alt="百家乐"></div></div>
+      </figure>
+      <figure class="device front" style="--w:408px;left:336px;top:18px">
+        <div class="bezel"><div class="screen"><img src="../shots/hall-v2.png" alt="游戏大厅"></div></div>
+      </figure>
+    </div>
+
+    <div class="games">
+      <div class="label">经典玩法</div>
+      <div class="pills">
+        <span class="pill">德州扑克</span>
+        <span class="pill">麻将胡了</span>
+        <span class="pill">百家乐</span>
+        <span class="pill">21点</span>
+        <span class="pill">骰宝</span>
+        <span class="pill">牛牛</span>
+        <span class="pill">炸金花</span>
+      </div>
+    </div>
+
+    <div class="invite">
+      <div class="l1">邀请好友得奖励，邀请越多奖励越多</div>
+      <div class="l2">好友入座，同桌会友</div>
+    </div>
+
+    <div class="qr-wrap">
+      <div class="qr-card"><img src="assets/qr.png" alt="网站二维码"></div>
+      <div>
+        <div class="cta">扫码即玩</div>
+        <div class="url">https://shifeng-holdem.onrender.com</div>
+        <div class="hint">打开即可入座</div>
+      </div>
+    </div>
+
+    <p class="footer">游戏币仅供娱乐，不可兑换或交易</p>
+  </div>
+</section>
+
+<!-- ===================== SQUARE ===================== -->
+<section class="board" id="square">
+  <div class="suits"></div>
+  <div class="grain"></div>
+  <div class="vignette"></div>
+  <div class="frame"></div>
+  <div class="corner c-tl"></div>
+  <div class="corner c-tr"></div>
+  <div class="corner c-bl"></div>
+  <div class="corner c-br"></div>
+
+  <div class="content">
+    <div class="left">
+      <div class="head">
+      <div class="logo-row">
+        <img class="logo" src="assets/logo.png" alt="时烽德州">
+        <h1 class="title gold-text">时烽德州</h1>
+      </div>
+      <p class="tagline">紫晶为席，以牌会友</p>
+      <p class="sub">七款经典玩法　·　多人在线对战</p>
+      </div>
+
+      <div class="games">
+        <div class="label">经典玩法</div>
+        <div class="pills">
+          <span class="pill">德州扑克</span>
+          <span class="pill">麻将胡了</span>
+          <span class="pill">百家乐</span>
+          <span class="pill">21点</span>
+        </div>
+        <div class="pills">
+          <span class="pill">骰宝</span>
+          <span class="pill">牛牛</span>
+          <span class="pill">炸金花</span>
+        </div>
+      </div>
+
+      <div class="lower">
+      <div class="invite">
+        <div class="l1">邀请好友得奖励</div>
+        <div class="l2">邀请越多奖励越多</div>
+      </div>
+
+      <div class="qr-wrap">
+        <div class="qr-card"><img src="assets/qr.png" alt="网站二维码"></div>
+        <div>
+          <div class="cta">扫码即玩</div>
+          <div class="url">https://shifeng-holdem.onrender.com</div>
+          <div class="hint">打开即可入座</div>
+        </div>
+      </div>
+      </div>
+
+      <p class="footer">游戏币仅供娱乐，不可兑换或交易</p>
+    </div>
+
+    <div class="cluster">
+      <figure class="device tilt-l mid" style="--w:286px;left:0;top:120px">
+        <div class="bezel"><div class="screen"><img src="../shots/mahjong-3d-portrait.png" alt="麻将胡了"></div></div>
+      </figure>
+      <figure class="device tilt-r mid" style="--w:286px;right:0;top:190px">
+        <div class="bezel"><div class="screen"><img src="../shots/game-blackjack-portrait.png" alt="21点"></div></div>
+      </figure>
+      <figure class="device front" style="--w:318px;left:102px;top:10px">
+        <div class="bezel"><div class="screen"><img src="../shots/hall-v2.png" alt="游戏大厅"></div></div>
+      </figure>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== BANNER ===================== -->
+<section class="board" id="banner">
+  <div class="suits"></div>
+  <div class="grain"></div>
+  <div class="vignette"></div>
+  <div class="frame"></div>
+  <div class="corner c-tl"></div>
+  <div class="corner c-tr"></div>
+  <div class="corner c-bl"></div>
+  <div class="corner c-br"></div>
+
+  <div class="content">
+    <div class="left">
+      <div class="logo-row">
+        <img class="logo" src="assets/logo.png" alt="时烽德州">
+        <div>
+          <h1 class="title gold-text">时烽德州</h1>
+        </div>
+      </div>
+      <p class="tagline">紫晶为席，以牌会友</p>
+      <p class="sub">七款经典玩法　·　多人在线对战</p>
+
+      <div class="games">
+        <div class="pills">
+          <span class="pill">德州扑克</span>
+          <span class="pill">麻将胡了</span>
+          <span class="pill">百家乐</span>
+          <span class="pill">21点</span>
+          <span class="pill">骰宝</span>
+          <span class="pill">牛牛</span>
+          <span class="pill">炸金花</span>
+        </div>
+      </div>
+
+      <div class="invite">
+        <div class="l1">邀请好友得奖励，邀请越多奖励越多</div>
+      </div>
+
+      <div class="qr-wrap">
+        <div class="qr-card"><img src="assets/qr.png" alt="网站二维码"></div>
+        <div>
+          <div class="cta">扫码即玩</div>
+          <div class="url">https://shifeng-holdem.onrender.com</div>
+          <div class="hint">打开即可入座</div>
+        </div>
+      </div>
+      <p class="footer">游戏币仅供娱乐，不可兑换或交易</p>
+    </div>
+
+    <div class="cluster">
+      <figure class="device tilt-l mid" style="--w:200px;left:8px;top:78px">
+        <div class="bezel"><div class="screen"><img src="../shots/mahjong-3d-portrait.png" alt="麻将胡了"></div></div>
+      </figure>
+      <figure class="device tilt-r mid" style="--w:200px;right:4px;top:104px">
+        <div class="bezel"><div class="screen"><img src="../shots/game-baccarat-portrait.png" alt="百家乐"></div></div>
+      </figure>
+      <figure class="device front" style="--w:228px;left:154px;top:10px">
+        <div class="bezel"><div class="screen"><img src="../shots/hall-v2.png" alt="游戏大厅"></div></div>
+      </figure>
+    </div>
+  </div>
+</section>
+
+</body>
+</html>

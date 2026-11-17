@@ -9,7 +9,7 @@ export async function boot(opts = {}) {
     // 设置 TEST_DATABASE_URL 时用真实 Postgres（每次一个独立 schema），否则用内存存储
     ...(process.env.TEST_DATABASE_URL ? { databaseUrl: process.env.TEST_DATABASE_URL, schema: "t_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 8) } : { memory: true }),
     quiet: true, bcryptRounds: 4, botDelay: [5, 15], nextHandDelay: 60000, autoActDelay: 20, listDebounceMs: 10,
-    adminUsername: "boss", adminPassword: "boss-secret", ...opts,
+    adminUsername: "boss", adminPassword: "boss-secret", autoBots: false, ...opts,
   });
   await new Promise((r) => ctx.server.listen(0, r));
   ctx.url = "http://localhost:" + ctx.server.address().port;

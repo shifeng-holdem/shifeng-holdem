@@ -63,6 +63,10 @@ class PgStore {
       CREATE TABLE IF NOT EXISTS reward_claims (
         id BIGSERIAL PRIMARY KEY, user_id INTEGER NOT NULL, type TEXT NOT NULL, ref TEXT NOT NULL, amount BIGINT NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
         UNIQUE (type, user_id, ref));
+      CREATE TABLE IF NOT EXISTS support_messages (
+        id BIGSERIAL PRIMARY KEY, user_id INTEGER NOT NULL, from_admin BOOLEAN NOT NULL, body TEXT NOT NULL,
+        read_admin BOOLEAN NOT NULL DEFAULT FALSE, read_user BOOLEAN NOT NULL DEFAULT FALSE, created_at TIMESTAMPTZ NOT NULL DEFAULT now());
+      CREATE INDEX IF NOT EXISTS support_messages_user ON support_messages(user_id, id);
     `);
     await this.backfillPublicIds();
     await this.migrateCents();
@@ -289,6 +293,23 @@ class PgStore {
     return { byStatus: Object.fromEntries(s.map((x) => [x.st || "none", Number(x.n)])), inviters: top.map((x) => ({ userId: Number(x.id), username: x.username, publicId: Number(x.public_id), total: Number(x.total), rewarded: Number(x.rewarded) })) };
   }
   async userClaims(userId) { return (await this.q(`SELECT type, ref, amount FROM reward_claims WHERE user_id=$1`, [userId])).rows.map((x) => ({ type: x.type, ref: x.ref, amount: Number(x.amount) })); }
+  // ---------- 客服消息 ----------
+  async chatAdd(userId, fromAdmin, body) {
+    const r = await this.q(`INSERT INTO support_messages (user_id, from_admin, body, read_admin, read_user) VALUES ($1,$2,$3,$2,NOT $2) RETURNING *`, [userId, fromAdmin, body]);
+    return chatRow(r.rows[0]);
+  }
+  async chatList(userId, limit = 200) {
+    const r = await this.q(`SELECT * FROM (SELECT * FROM support_messages WHERE user_id=$1 ORDER BY id DESC LIMIT $2) x ORDER BY id`, [userId, limit]);
+    return r.rows.map(chatRow);
+  }
+  async chatRead(userId, side) { await this.q(`UPDATE support_messages SET ${side === "admin" ? "read_admin" : "read_user"}=TRUE WHERE user_id=$1 AND NOT ${side === "admin" ? "read_admin" : "read_user"}`, [userId]); }
+  async chatUnread(userId) { return Number((await this.q(`SELECT count(*) AS n FROM support_messages WHERE user_id=$1 AND NOT read_user`, [userId])).rows[0].n); }
+  async chatConversations(limit = 200) {
+    const r = await this.q(`SELECT m.user_id, u.username, u.public_id, max(m.id) AS last_id, max(m.created_at) AS last_at, sum(CASE WHEN NOT m.read_admin THEN 1 ELSE 0 END) AS unread,
+      (SELECT body FROM support_messages z WHERE z.id = max(m.id)) AS last_body, (SELECT from_admin FROM support_messages z WHERE z.id = max(m.id)) AS last_admin
+      FROM support_messages m JOIN users u ON u.id = m.user_id GROUP BY m.user_id, u.username, u.public_id ORDER BY max(m.id) DESC LIMIT $1`, [limit]);
+    return r.rows.map((x) => ({ userId: Number(x.user_id), username: x.username, publicId: Number(x.public_id), unread: Number(x.unread), last: x.last_body, lastFromAdmin: x.last_admin, at: new Date(x.last_at).getTime() }));
+  }
   async rewardTotals() {
     const r = await this.q(`SELECT type, count(*) AS n, COALESCE(sum(amount),0) AS amount FROM reward_claims GROUP BY type`);
     return Object.fromEntries(r.rows.map((x) => [x.type, { count: Number(x.n), amount: Number(x.amount) }]));
@@ -296,6 +317,7 @@ class PgStore {
   async close() { await this.pool.end(); }
 }
 
+const chatRow = (x) => ({ id: Number(x.id), userId: Number(x.user_id), fromAdmin: x.from_admin, body: x.body, at: new Date(x.created_at).getTime() });
 class JsonStore {
   constructor(file) { this.file = file; this.kind = file ? "json" : "memory"; }
   async init() {
@@ -452,6 +474,17 @@ class JsonStore {
   }
   async userClaims(userId) { return (await this.q(`SELECT type, ref, amount FROM reward_claims WHERE user_id=$1`, [userId])).rows.map((x) => ({ type: x.type, ref: x.ref, amount: Number(x.amount) })); }
   async userClaims(userId) { return (this.d.claims || []).filter((c) => c.userId === userId).map((c) => ({ type: c.type, ref: c.ref, amount: c.amount })); }
+  async chatAdd(userId, fromAdmin, body) {
+    const L = (this.d.chat ||= []); const m = { id: ++this.d.seq, userId, fromAdmin: !!fromAdmin, body, readAdmin: !!fromAdmin, readUser: !fromAdmin, at: Date.now() };
+    L.push(m); this.save(); return { id: m.id, userId, fromAdmin: m.fromAdmin, body, at: m.at };
+  }
+  async chatList(userId, limit = 200) { return (this.d.chat || []).filter((m) => m.userId === userId).slice(-limit).map((m) => ({ id: m.id, userId: m.userId, fromAdmin: m.fromAdmin, body: m.body, at: m.at })); }
+  async chatRead(userId, side) { for (const m of this.d.chat || []) if (m.userId === userId) m[side === "admin" ? "readAdmin" : "readUser"] = true; this.save(); }
+  async chatUnread(userId) { return (this.d.chat || []).filter((m) => m.userId === userId && !m.readUser).length; }
+  async chatConversations(limit = 200) {
+    const by = new Map(); for (const m of this.d.chat || []) { const c = by.get(m.userId) || { userId: m.userId, unread: 0 }; if (!m.readAdmin) c.unread++; c.last = m.body; c.lastFromAdmin = m.fromAdmin; c.at = m.at; c.id = m.id; by.set(m.userId, c); }
+    return [...by.values()].sort((a, b) => b.id - a.id).slice(0, limit).map(({ id, ...c }) => { const u = this.u(c.userId) || {}; return { ...c, username: u.username, publicId: u.publicId }; });
+  }
   async rewardTotals() { const o = {}; for (const c of this.d.claims || []) { const t = (o[c.type] ||= { count: 0, amount: 0 }); t.count++; t.amount += c.amount; } return o; }
   async close() { this.save(); }
 }

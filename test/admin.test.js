@@ -59,7 +59,7 @@ test("查看房间、踢人、关闭房间都会返还筹码；设置里只剩�
     const a = await player(ctx, "甲方"), b = await player(ctx, "乙方");
     const eco = await economy(ctx);
     const r = await ack(a, "create", { cfg: { public: false } });
-    await ack(b, "join", { code: r.code }); a.emit("addBot");
+    await ack(b, "join", { code: r.code }); await ctx.addBot(r.code);
     await until(() => a.last && a.last.members.length === 3);
     const rooms = await api(ctx, "GET", "/api/admin/rooms", null, adm);
     assert.equal(rooms.data.length, 1, "后台能看到私密房间");
@@ -77,7 +77,7 @@ test("查看房间、踢人、关闭房间都会返还筹码；设置里只剩�
     assert.equal(await economy(ctx), eco);
 
     const s = await api(ctx, "POST", "/api/admin/settings", { dailyFree: 5000, signupBonus: 9999, rakePercent: 2 }, adm);
-    assert.deepEqual(s.data.settings, { rakePercent: 2 }, "不能再设置注册赠送或每日领取");
+    assert.deepEqual(Object.keys(s.data.settings).sort(), ["bots", "rakePercent"], "不能再设置注册赠送或每日领取"); assert.equal(s.data.settings.rakePercent, 2);
     const { user } = await register(ctx, "后来的人");
     assert.equal(user.balance, 0);
     assert.equal((await api(ctx, "POST", "/api/admin/settings", { rakePercent: 50 }, adm)).status, 400);

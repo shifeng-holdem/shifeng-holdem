@@ -12,7 +12,7 @@ test("4 个真人账号 + 1 个电脑玩家，完整打多手牌", async () => {
     const r = await ack(host, "create", { cfg: { start: 1000, sb: 10, bb: 20, timer: 30 } });
     assert.ok(r.ok && /^[A-Z0-9]{5}$/.test(r.code), JSON.stringify(r));
     for (const c of clients.slice(1)) { const j = await ack(c, "join", { code: r.code.toLowerCase() }); assert.ok(j.ok, j.error); }
-    host.emit("addBot");
+    await ctx.addBot(r.code);
     await until(() => host.last && host.last.members.length === 5);
     const eco1 = await economy(ctx);
     host.emit("start");
@@ -63,17 +63,18 @@ test("4 个真人账号 + 1 个电脑玩家，完整打多手牌", async () => {
   } finally { await ctx.close(); }
 });
 
-test("超时自动过牌/弃牌；房间满 9 人拒绝加入；未登录不能连接", async () => {
+test("超时自动过牌/弃牌；满桌时补位玩家给真人让座；未登录不能连接", async () => {
   const ctx = await boot({ turnMs: 300 });
   try {
     const a = await player(ctx, "玩家A"), b = await player(ctx, "玩家B");
     const r = await ack(a, "create", {});
     await ack(b, "join", { code: r.code });
-    for (let i = 0; i < 7; i++) a.emit("addBot");
+    for (let i = 0; i < 7; i++) await ctx.addBot(r.code);
     await until(() => a.last && a.last.members.length === 9);
     const c = await player(ctx, "玩家C");
     const full = await ack(c, "join", { code: r.code });
-    assert.equal(full.ok, false);
+    assert.equal(full.ok, true, "满桌时补位玩家让出座位给真人");
+    await until(() => a.last.members.length === 9 && a.last.members.some((m) => m.name === "玩家C"));
     a.emit("start");
     await until(() => a.last.game && a.last.game.log.some((l) => l.includes("超时")), 15000, "没有触发超时");
     await until(() => ["handover", "gameover"].includes(a.last.game.stage), 15000);

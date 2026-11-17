@@ -12,7 +12,7 @@ test("带入扣余额、离桌返还，总筹码守恒", async () => {
     assert.equal(await balanceOf(ctx, a), 7000);
     assert.ok((await ack(b, "join", { code: r.code })).ok);
     assert.ok((await ack(c, "join", { code: r.code })).ok);
-    a.emit("addBot");
+    await ctx.addBot(r.code);
     await until(() => a.last && a.last.members.length === 4);
     assert.equal(await economy(ctx), eco);
     a.emit("start");

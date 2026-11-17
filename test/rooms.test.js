@@ -22,24 +22,25 @@ test("公开房间出现在列表里并实时更新；私密房间不出现但�
     const friend = await player(ctx, "朋友");
     assert.ok((await ack(friend, "join", { code: pr.code })).ok);
     assert.ok(!(await ack(watcher, "listRooms")).some((r) => r.code === pr.code));
-    host.emit("addBot"); host.emit("addBot");
+    await ctx.addBot(pub.code); await ctx.addBot(pub.code);
     await until(() => live[0] && live[0].seats === 3);
     host.emit("start");
     await until(() => live[0] && live[0].status === "游戏中", 3000, "状态没有变成游戏中");
   } finally { await ctx.close(); }
 });
 
-test("满 9 人显示已满且不能加入", async () => {
+test("满 9 人显示已满；真人加入时补位玩家让座", async () => {
   const ctx = await boot();
   try {
     const host = await player(ctx, "房主");
     const r = await ack(host, "create", {});
-    for (let i = 0; i < 8; i++) host.emit("addBot");
+    for (let i = 0; i < 8; i++) await ctx.addBot(r.code);
     await until(async () => { const l = await ack(host, "listRooms"); return l[0] && l[0].seats === 9; });
     assert.equal((await ack(host, "listRooms"))[0].full, true);
     const c = await player(ctx, "迟到");
     const j = await ack(c, "join", { code: r.code });
-    assert.equal(j.ok, false); assert.match(j.error, /满/);
+    assert.equal(j.ok, true, "补位玩家让出座位"); assert.equal(ctx.rooms.get(r.code).members.filter((m) => !m.left).length, 9);
+    assert.equal(ctx.rooms.get(r.code).members.filter((m) => !m.left && m.bot).length, 7);
   } finally { await ctx.close(); }
 });
 
@@ -50,7 +51,7 @@ test("没有真人在线的房间从列表消失，过一段时间被清理并�
     let live = null; watcher.on("rooms", (l) => (live = l)); await ack(watcher, "watchRooms");
     const host = await player(ctx, "要走的人");
     const r = await ack(host, "create", {});
-    host.emit("addBot");
+    await ctx.addBot(r.code);
     await until(() => live && live.length === 1);
     assert.equal((await ctx.store.getUser(host.user.id)).balance, 10000 - 1000);
     host.disconnect();

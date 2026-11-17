@@ -637,6 +637,18 @@ html:not(.land) #tg[data-g="baccarat"] .pc.t{width:44px;height:62px;font-size:19
 .tiers>div.on{border-color:#f5d77a;background:#f5d77a22;box-shadow:0 0 10px #f5d77a55}.tiers>div.past{opacity:.6}.tiers b{color:#ffe9a8;font-size:16px}.tiers i{font-style:normal;font-size:10px;background:#d4af37;color:#2a1600;border-radius:6px;padding:0 4px;text-align:center}
 .miles{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}.miles>div{background:#0003;border-radius:10px;padding:6px;text-align:center;border:1px solid #ffffff14;display:flex;flex-direction:column}
 .miles>div.done{border-color:#7dff9e88}.miles .ma{font-size:11px;color:#bfa9de}.miles b{color:#ffe9a8}.miles .mp{font-size:11px}
+.csbtn{position:relative}.csdot{position:absolute;top:-6px;right:-6px;min-width:16px;height:16px;border-radius:999px;background:#ff3b4f;color:#fff;font-size:10px;font-style:normal;line-height:16px;padding:0 4px;box-shadow:0 0 0 2px #2a1050}
+.cssheet{display:flex;flex-direction:column;height:min(80dvh,640px)}
+.cslist{flex:1;overflow-y:auto;padding:8px 2px;display:flex;flex-direction:column;gap:8px;background:#0003;border-radius:12px;border:1px solid #ffffff12}
+.csm{max-width:80%;display:flex;flex-direction:column}.csm.mine{align-self:flex-end;align-items:flex-end}.csm.them{align-self:flex-start}
+.csb{padding:8px 12px;border-radius:14px;white-space:pre-wrap;word-break:break-word;font-size:14px;line-height:1.5}
+.csm.mine .csb{background:linear-gradient(180deg,#f5d77a,#d4af37);color:#2a1600;border-bottom-right-radius:4px}
+.csm.them .csb{background:#ffffff1c;border:1px solid #d4af3755;color:#fff;border-bottom-left-radius:4px}
+.cst{font-size:10px;color:#bfa9de;margin:2px 6px 0}
+.csin{display:flex;gap:6px;margin-top:8px}.csin textarea{flex:1;resize:none;min-height:42px;max-height:110px;background:#0005;color:#fff;border:1px solid #d4af3766;border-radius:12px;padding:10px;font:inherit}
+.csin button{flex:none;padding:0 18px}.cscount{text-align:right;font-size:10px;margin-top:2px}
+.cssheet footer.safe{margin:6px auto 0}
+html.land .cssheet{height:92dvh}
 </style>
 </head>
 <body>
@@ -671,7 +683,7 @@ html:not(.land) #tg[data-g="baccarat"] .pc.t{width:44px;height:62px;font-size:19
       <div style="flex:1;min-width:0" onclick="openProfile()"><div class="uid"><span class="pid" id="uPid"></span> · <span id="uName"></span></div><div class="bal">余额 <b id="uBal">0.00</b></div><span class="vipb" id="uVip" onclick="event.stopPropagation();openVip()">VIP0 新手</span></div>
       <div style="flex:none;display:flex;flex-direction:column;gap:6px"><button class="pri sm" id="btnProfile" onclick="openProfile()">个人中心</button><button class="ghost sm" id="btnLogout">退出</button></div>
     </div>
-    <div class="hbtns"><button class="ghost sm" onclick="openVip()">👑 VIP 等级</button><button class="ghost sm" onclick="openInvite()">🎁 邀请好友</button><button class="ghost sm" onclick="openNews()">📜 公告</button></div>
+    <div class="hbtns"><button class="ghost sm" onclick="openVip()">👑 VIP 等级</button><button class="ghost sm" onclick="openInvite()">🎁 邀请好友</button><button class="ghost sm" onclick="openNews()">📜 公告</button><button class="ghost sm csbtn" onclick="openChat()">💬 客服<i class="csdot hidden"></i></button></div>
     <div id="noChips" class="nochips hidden">
       <div>💬 余额不足，请联系客服获取游戏币</div>
       <!-- 客服链接（以后填 Telegram）：服务器环境变量 SUPPORT_URL，或改下面脚本里的 SUPPORT_URL_FALLBACK -->
@@ -738,7 +750,7 @@ html:not(.land) #tg[data-g="baccarat"] .pc.t{width:44px;height:62px;font-size:19
       <div class="row" style="justify-content:center;flex-wrap:nowrap;gap:6px"><span class="pidbig" id="pPid"></span><button class="ghost sm" id="pCopy">复制 ID</button></div>
       <div class="bal" style="text-align:center;margin-top:6px">余额 <b id="pBal">0.00</b></div>
       <div class="muted" style="text-align:center" id="pSince"></div>
-      <div class="row" style="justify-content:center;margin-top:8px"><button class="ghost sm" id="pAvDel">恢复默认头像</button></div>
+      <div class="row" style="justify-content:center;margin-top:8px;gap:8px"><button class="ghost sm" id="pAvDel">恢复默认头像</button><button class="blue sm csbtn" onclick="openChat()">💬 联系客服<i class="csdot hidden"></i></button></div>
     </div>
     <div>
       <div class="card-box"><h2>♠ 时烽德州</h2><div class="pstats" id="pPoker"></div></div>
@@ -807,8 +819,8 @@ html:not(.land) #tg[data-g="baccarat"] .pc.t{width:44px;height:62px;font-size:19
   <div class="card-box">
     <h2 id="lCount">玩家</h2>
     <div id="lMembers"></div>
-    <div class="row hidden" id="hostCtl" style="margin-top:10px"><button id="btnBot">＋ 添加电脑玩家</button><button class="pri" id="btnStart">开始游戏</button></div>
-    <div class="muted" id="waitHost" style="margin-top:10px">等待房主开始游戏…</div>
+    <div class="row hidden" id="hostCtl" style="margin-top:10px"><button class="pri" id="btnStart">开始游戏</button></div>
+    <div class="muted" id="waitHost" style="margin-top:10px">正在匹配玩家，人齐后自动开始…</div>
   </div>
   <div class="card-box"><h2>规则设置</h2><div id="lCfg" class="muted"></div></div>
 </div>
@@ -816,7 +828,7 @@ html:not(.land) #tg[data-g="baccarat"] .pc.t{width:44px;height:62px;font-size:19
 <!-- 牌桌 -->
 <div id="game" class="hidden">
   <div id="top"><span>房间 <b id="gCode"></b></span><span id="gBlind" class="muted"></span>
-    <span class="row" style="flex:0 0 auto;gap:4px"><button class="ghost" id="btnInvite">邀请</button><button class="ghost" id="btnBot2">＋电脑</button><button class="ghost" id="btnSit">暂离</button><button class="ghost" id="btnLeave2">离开</button><span class="sndgrp"></span></span></div>
+    <span class="row" style="flex:0 0 auto;gap:4px"><button class="ghost" id="btnInvite">邀请</button><button class="ghost" id="btnSit">暂离</button><button class="ghost" id="btnLeave2">离开</button><span class="sndgrp"></span></span></div>
   <div id="table"><div id="felt"></div><div id="center"><div id="pot"></div><div id="board"></div><div id="stage"></div></div></div>
   <div id="side"><div id="me">
     <div id="myrow"><div id="mycards"></div><div id="myinfo"><div id="myhand"></div><div id="mychips" class="muted"></div></div></div>
@@ -862,6 +874,12 @@ html:not(.land) #tg[data-g="baccarat"] .pc.t{width:44px;height:62px;font-size:19
   <footer class="safe">游戏币仅供娱乐，不可兑换或交易</footer>
   <div class="mjmodal hidden" id="tgModal"><div class="mjsheet"><div class="row" style="justify-content:space-between;flex-wrap:nowrap"><h2 style="flex:none;margin:0" id="tgModalT"></h2><button class="ghost" style="flex:none;padding:4px 12px" id="tgModalX">关闭</button></div><div id="tgModalB"></div></div></div>
 </div>
+<div class="mjmodal hidden" id="csModal"><div class="mjsheet cssheet"><div class="row" style="justify-content:space-between;flex-wrap:nowrap"><h2 style="flex:none;margin:0">💬 在线客服</h2><button class="ghost" style="flex:none;padding:4px 12px" onclick="closeChat()">关闭</button></div>
+  <div class="muted" style="font-size:12px;margin:4px 0 6px">有问题可以在这里留言，客服看到后会尽快回复。</div>
+  <div class="cslist" id="csList"></div>
+  <div class="csin"><textarea id="csText" rows="1" maxlength="500" placeholder="输入消息（最多 500 字）"></textarea><button class="pri" id="csSend">发送</button></div>
+  <div class="cscount muted" id="csCount">0 / 500</div>
+  <footer class="safe">游戏币仅供娱乐，不可兑换或交易</footer></div></div>
 <div class="mjmodal hidden" id="hModal"><div class="mjsheet"><div class="row" style="justify-content:space-between;flex-wrap:nowrap"><h2 style="flex:none;margin:0" id="hModalT"></h2><button class="ghost" style="flex:none;padding:4px 12px" onclick="$('hModal').classList.add('hidden')">关闭</button></div><div id="hModalB"></div><footer class="safe">游戏币仅供娱乐，不可兑换或交易</footer></div></div>
 
 <script src="/socket.io/socket.io.js"></script>
@@ -954,12 +972,46 @@ function setMe(u) {
   // 余额为 0：提示联系客服（游戏币只能由庄家赠送）
   $("noChips").classList.toggle("hidden", u.balance > 0);
   const link = supportLink();
-  $("btnSupport").classList.toggle("hidden", !link); $("supportSoon").classList.toggle("hidden", !!link);
+  $("btnSupport").classList.remove("hidden"); $("supportSoon").classList.add("hidden");
 }
 // 客服入口占位：以后在服务器设置 SUPPORT_URL（例如 https://t.me/xxx），或直接改这里
 const SUPPORT_URL_FALLBACK = "";
 function supportLink() { return (me && me.supportUrl) || SUPPORT_URL_FALLBACK; }
-function contactSupport() { const l = supportLink(); if (l) window.open(l, "_blank", "noopener"); else toast("客服联系方式即将公布"); }
+function contactSupport() { openChat(); }
+// ---------- 在线客服 ----------
+let csOpen = false, csMsgs = [], csSending = false;
+const csTime = (t) => new Date(t).toLocaleString("zh-CN", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" });
+function csPaint() {
+  const el = $("csList");
+  el.innerHTML = csMsgs.length ? csMsgs.map((m) => `<div class="csm ${m.fromAdmin ? "them" : "mine"}"><div class="csb">${esc(m.body)}</div><div class="cst">${m.fromAdmin ? "客服 · " : ""}${csTime(m.at)}</div></div>`).join("") : `<div class="muted" style="text-align:center;padding:30px 0">还没有消息，发一条试试吧</div>`;
+  el.scrollTop = el.scrollHeight;
+}
+function csDot(n) { document.querySelectorAll(".csdot").forEach((d) => { d.classList.toggle("hidden", !n); d.textContent = n > 9 ? "9+" : n || ""; }); }
+window.openChat = async () => {
+  $("csModal").classList.remove("hidden"); csOpen = true;
+  try { const r = await fetch("/api/support/messages", { headers: authH() }); if (r.ok) { csMsgs = (await r.json()).list; csPaint(); csDot(0); } } catch (e) {}
+  setTimeout(() => $("csText").focus(), 100);
+};
+window.closeChat = () => { $("csModal").classList.add("hidden"); csOpen = false; };
+async function csSend() {
+  const body = $("csText").value.trim(); if (!body || csSending) return;
+  csSending = true; $("csSend").disabled = true;
+  try {
+    const r = await fetch("/api/support/messages", { method: "POST", headers: { ...authH(), "content-type": "application/json" }, body: JSON.stringify({ body }) });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) toast(d.error || "发送失败"); else { $("csText").value = ""; $("csCount").textContent = "0 / 500"; if (!csMsgs.some((m) => m.id === d.message.id)) { csMsgs.push(d.message); csPaint(); } }
+  } catch (e) { toast("发送失败，请检查网络"); }
+  setTimeout(() => { csSending = false; $("csSend").disabled = false; }, 1000);
+}
+$("csSend").onclick = csSend;
+$("csText").onkeydown = (e) => { if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); csSend(); } };
+$("csText").oninput = () => { $("csCount").textContent = `${[...$("csText").value].length} / 500`; };
+socket.on("support:msg", async (m) => {
+  if (!csMsgs.some((x) => x.id === m.id)) csMsgs.push(m);
+  if (csOpen) { csPaint(); if (m.fromAdmin) fetch("/api/support/messages", { headers: authH() }).catch(() => {}); }
+  else if (m.fromAdmin) { try { const d = await (await fetch("/api/support/unread", { headers: authH() })).json(); csDot(d.unread); } catch (e) {} toast("💬 客服回复了你的消息"); }
+});
+socket.on("connect", async () => { try { const d = await (await fetch("/api/support/unread", { headers: authH() })).json(); csDot(d.unread || 0); } catch (e) {} });
 $("btnSupport").onclick = contactSupport;
 // 大厅
 $("gPoker").onclick = () => show("home");
@@ -1170,7 +1222,6 @@ async function share() {
   try { await navigator.clipboard.writeText(url); toast("邀请链接已复制"); } catch (e) { prompt("复制这个链接发给朋友：", url); }
 }
 $("btnShare").onclick = share; $("btnInvite").onclick = share;
-$("btnBot").onclick = $("btnBot2").onclick = () => socket.emit("addBot");
 $("btnStart").onclick = () => socket.emit("start");
 const leave = () => { if (!confirm("确定离开房间吗？桌上剩余的筹码会返还到你的余额（正在进行的这手牌会自动弃牌，结束后返还）。")) return; socket.emit("leave"); clearRoom(); show("home"); setTimeout(refreshMe, 800); };
 $("btnLeave1").onclick = $("btnLeave2").onclick = leave;
@@ -1217,9 +1268,9 @@ function renderLobby() {
   if ($("lobby").classList.contains("hidden")) show("lobby");
   $("lCode").textContent = S.code; $("lLink").textContent = link();
   $("lCount").textContent = `玩家（${S.members.length}/9）`;
-  $("lMembers").innerHTML = S.members.map((m) => `<div class="member"><span>${m.bot ? '<span class="sav bot">🤖</span>' : m.pid ? `<img class="sav sv${m.vip || 0}" src="/api/avatar/${m.pid}?v=${m.av || 0}" alt="">` : ""}${m.pid ? `<span class="pid">ID ${m.pid}</span> · ` : ""}${m.vip ? `<span class="vipb v${m.vip}" style="margin:0 4px 0 0">VIP${m.vip}</span>` : ""}${esc(m.name)}${m.host ? '<span class="tag">房主</span>' : ""}${m.bot ? '<span class="tag">电脑</span>' : ""}${!m.connected ? '<span class="tag">离线</span>' : ""}${S.members[S.you] && S.members.indexOf(m) === S.you ? '<span class="tag">我</span>' : ""}</span>${S.isHost && m.bot ? `<button class="ghost" onclick="socket.emit('removeBot',${m.i})">移除</button>` : ""}</div>`).join("");
+  $("lMembers").innerHTML = S.members.map((m) => `<div class="member"><span>${m.avu ? `<img class="sav sv${m.vip || 0}" src="${esc(m.avu)}" alt="">` : ""}${m.pid ? `<span class="pid">ID ${m.pid}</span> · ` : ""}${m.vip ? `<span class="vipb v${m.vip}" style="margin:0 4px 0 0">VIP${m.vip}</span>` : ""}${esc(m.name)}${m.host ? '<span class="tag">房主</span>' : ""}${!m.connected ? '<span class="tag">离线</span>' : ""}${S.members[S.you] && S.members.indexOf(m) === S.you ? '<span class="tag">我</span>' : ""}</span></div>`).join("");
   $("hostCtl").classList.toggle("hidden", !S.isHost); $("waitHost").classList.toggle("hidden", S.isHost);
-  $("btnStart").disabled = S.members.length < 2; $("btnBot").disabled = S.members.length >= 9;
+  $("btnStart").disabled = S.members.length < 2;
   const c = S.cfg; $("lCfg").textContent = `带入 ${M(c.start)} · 盲注 ${M(c.sb)}/${M(c.bb)} · 每次思考 ${c.timer} 秒（超时自动过牌或弃牌）· ${c.public ? "公开房间（大厅可见）" : "私密房间（仅凭房间码加入）"}`;
 }
 
@@ -1239,7 +1290,6 @@ function setHtml(el, h) { if (el._h !== h) { el._h = h; el.innerHTML = h; } }
 function renderGame() {
   const g = S.game, n = g.players.length, me = S.you >= 0 ? S.you : 0;
   $("gCode").textContent = S.code; $("gBlind").textContent = `盲注 ${M(g.sbAmt)}/${M(g.bbAmt)} · 第 ${g.handNo} 手`;
-  $("btnBot2").classList.toggle("hidden", !S.isHost || S.members.length >= 9);
   const meP = g.players[S.you];
   $("btnSit").textContent = meP && meP.sitOut ? "回来" : "暂离";
   const t = $("table"); const land = document.documentElement.classList.contains("land");
@@ -1263,7 +1313,7 @@ function renderGame() {
     let st = p.left ? "已离开" : !p.connected ? "离线" : p.out ? (p.chips <= 0 ? "已淘汰" : "暂离") : p.allIn ? "全下" : p.folded ? "弃牌" : p.last;
     if (ended && p.handName) st = `<span class="hn">${esc(p.handName)}</span>`; else st = esc(st);
     const bar = g.current === i && S.deadline ? `<div class="tbar"><i data-dl="${S.deadline}"></i></div>` : "";
-    const av = p.bot ? `<span class="sav bot">🤖</span>` : p.pid ? `<img class="sav sv${p.vip || 0}" src="/api/avatar/${p.pid}?v=${p.av || 0}" alt="">` : "";
+    const av = p.avu ? `<img class="sav sv${p.vip || 0}" src="${esc(p.avu)}" alt="">` : "";
     setHtml(el, `${g.dealer === i ? '<div class="dbtn">D</div>' : ""}${!ended && g.sb === i && n > 2 ? '<div class="blind">小盲</div>' : ""}${!ended && g.bb === i ? '<div class="blind">大盲</div>' : ""}
       <div class="mini">${mini}</div><div class="nm">${av}${esc(p.name)}</div>${p.pid ? `<div class="spid">ID ${p.pid}</div>` : ""}<div class="ch">${M(p.chips)}</div>
       <div class="st">${ended && p.won ? `<span class="won">+${M(p.won)}</span> ` : ""}${st}</div>${bar}`);
@@ -1292,7 +1342,7 @@ function renderActions() {
   const rebuyBtn = g.canRebuy ? `<button class="blue" style="width:100%;margin-top:8px" onclick="rebuy()">从余额补充筹码（带入 ${M(S.cfg.start)}）</button>` : "";
   if (g.stage === "gameover") {
     const w = g.players.filter((p) => p.chips > 0).sort((a, b) => b.chips - a.chips)[0];
-    setHtml(box, `<div id="status">🏆 ${w ? `${esc(w.name)} 赢下了桌上所有筹码` : "本局结束"}<br><span class="muted">至少两人有筹码才能继续：可以补充筹码，或请房主添加电脑玩家</span></div>` + rebuyBtn);
+    setHtml(box, `<div id="status">🏆 ${w ? `${esc(w.name)} 赢下了桌上所有筹码` : "本局结束"}<br><span class="muted">至少两人有筹码才能继续：可以补充筹码，或稍等其他玩家入座</span></div>` + rebuyBtn);
     return;
   }
   if (g.stage === "handover") {

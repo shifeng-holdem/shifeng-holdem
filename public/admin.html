@@ -58,6 +58,18 @@ h1{color:#f5d77a;text-shadow:0 1px 0 #c89b2a,0 2px 0 #a07a12,0 3px 0 #7a5a08,0 5
 button.pri{box-shadow:inset 0 1px 0 #fff8,0 3px 0 #8a6408,0 5px 10px #0007}
 button.pri:active{transform:translateY(2px);box-shadow:inset 0 1px 0 #fff8,0 1px 0 #8a6408,0 2px 4px #0007}
 footer.safe{text-align:center;font-size:11px;color:#b9a6d6;opacity:.75;padding:14px 0 calc(10px + env(safe-area-inset-bottom))}
+.badge{display:inline-block;font-style:normal;min-width:16px;height:16px;line-height:16px;border-radius:999px;background:#ff3b4f;color:#fff;font-size:10px;padding:0 4px;margin-left:3px;text-align:center}
+.csgrid{display:grid;grid-template-columns:1fr;gap:0}@media(min-width:760px){.csgrid{grid-template-columns:280px 1fr;gap:10px}}
+.conv{padding:8px;border-radius:10px;cursor:pointer;border:1px solid transparent;margin-top:4px}.conv:hover{background:#ffffff0d}.conv.on{border-color:#d4af37;background:#d4af371a}
+.cvl{font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.csroom{display:flex;flex-direction:column;min-height:420px}
+.cslist{flex:1;min-height:260px;max-height:55vh;overflow-y:auto;padding:8px 2px;display:flex;flex-direction:column;gap:8px;background:#0003;border-radius:12px;margin:8px 0}
+.csm{max-width:80%;display:flex;flex-direction:column}.csm.mine{align-self:flex-end;align-items:flex-end}.csm.them{align-self:flex-start}
+.csb{padding:8px 12px;border-radius:14px;white-space:pre-wrap;word-break:break-word;font-size:14px}
+.csm.mine .csb{background:linear-gradient(180deg,#f5d77a,#d4af37);color:#2a1600}.csm.them .csb{background:#ffffff1c;border:1px solid #d4af3755;color:#fff}
+.cst{font-size:10px;color:#bfa9de;margin:2px 6px 0}
+.csin{display:flex;gap:6px}.csin textarea{flex:1;resize:vertical;background:#0005;color:#fff;border:1px solid #d4af3766;border-radius:10px;padding:8px;font:inherit}.csin button{flex:none}
+.tabs{overflow-x:auto;scrollbar-width:none}.tabs::-webkit-scrollbar{display:none}.tabs button{flex:1 0 auto;padding:9px 10px;white-space:nowrap}
 </style>
 </head>
 <body>
@@ -75,7 +87,7 @@ footer.safe{text-align:center;font-size:11px;color:#b9a6d6;opacity:.75;padding:1
 
   <div id="main" class="hidden">
     <div class="row" style="justify-content:space-between;margin:10px 0"><span class="muted">管理员 <b id="who"></b></span><button class="ghost sm" id="btnOut">退出</button></div>
-    <div class="tabs" id="tabs"><button data-t="ov" class="on">概览</button><button data-t="users">玩家</button><button data-t="rooms">房间</button><button data-t="mj">麻将</button><button data-t="gm">游戏</button><button data-t="rw">邀请</button><button data-t="an">公告</button><button data-t="set">设置</button></div>
+    <div class="tabs" id="tabs"><button data-t="ov" class="on">概览</button><button data-t="users">玩家</button><button data-t="rooms">房间</button><button data-t="mj">麻将</button><button data-t="gm">游戏</button><button data-t="rw">邀请</button><button data-t="an">公告</button><button data-t="cs">客服消息<i class="badge hidden" id="csBadge"></i></button><button data-t="set">设置</button></div>
 
     <div id="t-ov">
       <div class="box"><div class="stats" id="stats"></div><div id="storeWarn"></div></div>
@@ -125,11 +137,23 @@ footer.safe{text-align:center;font-size:11px;color:#b9a6d6;opacity:.75;padding:1
         <div id="anList"></div><button class="pri" id="anSave" style="width:100%;margin-top:10px">保存公告</button></div>
     </div>
 
+    <div id="t-cs" class="hidden">
+      <div class="csgrid">
+        <div class="box csconv"><div class="row" style="justify-content:space-between"><h2 style="margin:0">会话</h2><button class="ghost sm" style="flex:none" id="csNotify">🔔 开启提醒</button></div><div id="csConv"></div></div>
+        <div class="box csroom"><div id="csHead" class="muted">选择左边的一个会话</div><div class="cslist" id="csMsgs"></div>
+          <div class="csin"><textarea id="csReply" rows="2" maxlength="500" placeholder="回复（最多 500 字，Enter 发送，Shift+Enter 换行）" disabled></textarea><button class="pri" id="csSend" disabled>发送</button></div></div>
+      </div>
+    </div>
+
     <div id="t-set" class="hidden">
       <div class="box">
         <h2>筹码规则</h2>
         <div class="muted">玩家的游戏币只能由管理员在“玩家”页赠送：注册不送，也没有每日免费领取。</div>
         <label>抽水比例（%，0–10，翻牌后才抽，进入庄家账户）</label><input id="sRake" type="number" inputmode="decimal" step="0.5">
+        <h2 style="margin-top:14px">补位玩家（德州）</h2>
+        <div class="muted">真人优先互相匹配；开局前等待指定秒数仍不够 4 人时，系统自动安排补位玩家入座并开局。补位玩家只看得到自己的手牌和公共信息，筹码由庄家账户出资、离桌退回，不经过任何玩家余额，没有玩家 ID、不记战绩、不上跑马灯。有真人等座位时补位玩家在这手结束后离桌；桌上没有在线真人时全部离桌。玩家端不显示补位玩家标识。</div>
+        <label class="row" style="gap:8px;margin-top:8px;flex-wrap:nowrap"><input type="checkbox" id="bOn" style="width:auto;flex:none"> 开启补位玩家</label>
+        <div class="row" style="flex-wrap:nowrap;gap:8px"><div style="flex:1"><label>等待真人匹配（秒，3–120）</label><input id="bWait" type="number" inputmode="numeric" min="3" max="120"></div><div style="flex:1"><label>每桌最多补位人数（0–8）</label><input id="bMax" type="number" inputmode="numeric" min="0" max="8"></div></div>
         <button class="pri" id="btnSave" style="width:100%;margin-top:12px">保存设置</button>
         <div class="muted" style="margin-top:8px">抽水比例从下一手牌开始生效。</div>
       </div>
@@ -137,6 +161,7 @@ footer.safe{text-align:center;font-size:11px;color:#b9a6d6;opacity:.75;padding:1
   </div>
 </div>
 <footer class="safe">游戏币仅供娱乐，不可兑换或交易</footer>
+<script src="/socket.io/socket.io.js"></script>
 <script>
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -169,23 +194,23 @@ $("tabs").querySelectorAll("button").forEach((b) => b.onclick = () => setTab(b.d
 function setTab(t) {
   tab = t;
   $("tabs").querySelectorAll("button").forEach((x) => x.classList.toggle("on", x.dataset.t === t));
-  for (const x of ["ov", "users", "rooms", "mj", "gm", "rw", "an", "set"]) $("t-" + x).classList.toggle("hidden", x !== t);
-  if (t === "ov") loadStats(); if (t === "users") loadUsers(); if (t === "rooms") loadRooms(); if (t === "mj") loadMj(); if (t === "set") loadStats(); if (t === "gm") loadGames(); if (t === "rw") loadRw(); if (t === "an") loadAn();
+  for (const x of ["ov", "users", "rooms", "mj", "gm", "rw", "an", "cs", "set"]) $("t-" + x).classList.toggle("hidden", x !== t);
+  if (t === "ov") loadStats(); if (t === "users") loadUsers(); if (t === "rooms") loadRooms(); if (t === "mj") loadMj(); if (t === "set") loadStats(); if (t === "gm") loadGames(); if (t === "rw") loadRw(); if (t === "an") loadAn(); if (t === "cs") loadConv();
 }
 async function start(name) {
   $("loginBox").classList.add("hidden"); $("main").classList.remove("hidden");
   if (name) $("who").textContent = name;
-  setTab(tab);
+  setTab(tab); csConnect(); loadConv();
   clearInterval(timer); timer = setInterval(() => { if (tab === "ov") loadStats(); if (tab === "rooms") loadRooms(); if (tab === "mj") loadMj(); }, 10000);
 }
 
 async function loadStats() {
   const s = await call("GET", "/api/admin/stats");
-  const items = [["在线玩家", s.online], ["房间", s.rooms], ["在座真人", s.seated], ["电脑玩家", s.bots], ["注册玩家", s.users], ["庄家余额", fmt(s.house)], ["桌上筹码", fmt(s.tableChips)], ["抽水比例", s.settings.rakePercent + "%"]];
+  const items = [["在线玩家", s.online], ["房间", s.rooms], ["在座真人", s.seated], ["补位玩家", s.bots], ["注册玩家", s.users], ["庄家余额", fmt(s.house)], ["桌上筹码", fmt(s.tableChips)], ["抽水比例", s.settings.rakePercent + "%"]];
   $("stats").innerHTML = items.map(([l, v]) => `<div class="stat"><div class="v">${v}</div><div class="l">${l}</div></div>`).join("");
-  const houseNote = `<div class="muted" style="margin-top:8px">庄家余额 = 抽水收入 + 麻将消消乐盈亏 − 电脑玩家带入的筹码（电脑玩家离桌时返还），为负数是正常的。</div>`;
+  const houseNote = `<div class="muted" style="margin-top:8px">庄家余额 = 抽水收入 + 麻将消消乐盈亏 − 补位玩家带入的筹码（补位玩家离桌时返还），为负数是正常的。</div>`;
   $("storeWarn").innerHTML = houseNote + (s.storage === "postgres" ? `<div class="muted" style="margin-top:8px">数据存储：Postgres 数据库</div>` : `<div class="warn">⚠️ 当前没有连接数据库（存储：${esc(s.storage)}），服务器重启或重新部署后账号和余额会丢失。请在 Render 设置 DATABASE_URL。</div>`);
-  $("sRake").value = s.settings.rakePercent;
+  $("sRake").value = s.settings.rakePercent; const B = s.settings.bots || {}; if (document.activeElement !== $("bWait") && document.activeElement !== $("bMax")) { $("bOn").checked = !!B.enabled; $("bWait").value = B.waitSec; $("bMax").value = B.maxPerTable; }
 }
 
 let usersCache = [];
@@ -315,10 +340,55 @@ function paintAn() {
 async function loadAn() { try { AN = await call("GET", "/api/admin/announcements"); paintAn(); } catch (e) { toast(e.message); } }
 $("anAdd").onclick = () => { if (AN.length >= 20) return toast("最多 20 条"); AN.unshift({ title: "", body: "", pinned: false, at: Date.now() }); paintAn(); };
 $("anSave").onclick = async () => { try { const d = await call("POST", "/api/admin/announcements", { list: AN }); AN = d.list; paintAn(); toast("公告已保存"); } catch (e) { toast(e.message); } };
+
+// ---------- 客服消息 ----------
+let CONV = [], csUid = null, csMsgList = [], csSock = null, csBusy = false;
+const csTime = (t) => new Date(t).toLocaleString("zh-CN", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" });
+function beep() { try { const A = new (window.AudioContext || window.webkitAudioContext)(); [880, 1320].forEach((f, i) => { const o = A.createOscillator(), g = A.createGain(); o.frequency.value = f; o.connect(g); g.connect(A.destination); g.gain.setValueAtTime(0.0001, A.currentTime + i * 0.16); g.gain.exponentialRampToValueAtTime(0.25, A.currentTime + i * 0.16 + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, A.currentTime + i * 0.16 + 0.15); o.start(A.currentTime + i * 0.16); o.stop(A.currentTime + i * 0.16 + 0.16); }); } catch (e) {} }
+function csBadge() { const n = CONV.reduce((a, c) => a + (c.unread || 0), 0); $("csBadge").textContent = n > 99 ? "99+" : n; $("csBadge").classList.toggle("hidden", !n); document.title = (n ? `(${n}) ` : "") + "时烽德州 · 庄家后台"; }
+function paintConv() {
+  $("csConv").innerHTML = CONV.length ? CONV.map((c) => `<div class="conv ${c.userId === csUid ? "on" : ""}" onclick="openConv(${c.userId})"><div class="row" style="justify-content:space-between;flex-wrap:nowrap"><b><span class="pid">ID ${c.publicId}</span> · ${esc(c.username)}</b>${c.unread ? `<i class="badge">${c.unread}</i>` : ""}</div><div class="muted cvl">${c.lastFromAdmin ? "我：" : ""}${esc(c.last)}</div><div class="muted" style="font-size:11px">${csTime(c.at)}</div></div>`).join("") : `<div class="muted" style="padding:8px 0">还没有客服消息</div>`;
+  csBadge();
+}
+function paintMsgs() {
+  const el = $("csMsgs");
+  el.innerHTML = csMsgList.map((m) => `<div class="csm ${m.fromAdmin ? "mine" : "them"}"><div class="csb">${esc(m.body)}</div><div class="cst">${m.fromAdmin ? "客服" : "玩家"} · ${csTime(m.at)}</div></div>`).join("");
+  el.scrollTop = el.scrollHeight;
+}
+async function loadConv() { try { CONV = await call("GET", "/api/admin/support"); paintConv(); } catch (e) {} }
+async function openConv(uid) {
+  try { const d = await call("GET", `/api/admin/support/${uid}`); csUid = uid; csMsgList = d.list;
+    $("csHead").innerHTML = `<b><span class="pid">ID ${d.user.publicId}</span> · ${esc(d.user.username)}</b> <span class="muted">余额 ${fmt(d.user.balance)}</span>`;
+    $("csReply").disabled = $("csSend").disabled = false; paintMsgs();
+    const c = CONV.find((x) => x.userId === uid); if (c) c.unread = 0; paintConv(); $("csReply").focus();
+  } catch (e) { toast(e.message); }
+}
+async function csSendReply() {
+  const body = $("csReply").value.trim(); if (!body || !csUid || csBusy) return; csBusy = true;
+  try { const d = await call("POST", `/api/admin/support/${csUid}`, { body }); $("csReply").value = ""; if (!csMsgList.some((m) => m.id === d.message.id)) { csMsgList.push(d.message); paintMsgs(); } loadConv(); }
+  catch (e) { toast(e.message); }
+  setTimeout(() => (csBusy = false), 1000);
+}
+$("csSend").onclick = csSendReply;
+$("csReply").onkeydown = (e) => { if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); csSendReply(); } };
+$("csNotify").onclick = () => { if (!("Notification" in window)) return toast("这个浏览器不支持系统通知"); Notification.requestPermission().then((p) => toast(p === "granted" ? "已开启新消息提醒" : "没有获得通知权限")); };
+function csConnect() {
+  if (csSock || typeof io === "undefined") return;
+  csSock = io({ auth: { token } });
+  csSock.on("connect", () => csSock.emit("adminWatch"));
+  csSock.on("support:new", (m) => {
+    beep();
+    if ("Notification" in window && Notification.permission === "granted" && document.hidden) try { new Notification(`客服消息 · ${m.username}`, { body: m.body.slice(0, 80) }); } catch (e) {}
+    if (m.userId === csUid && tab === "cs") { csMsgList.push(m); paintMsgs(); call("GET", `/api/admin/support/${m.userId}`).catch(() => {}); }
+    else toast(`💬 ${m.username}：${m.body.slice(0, 30)}`);
+    loadConv();
+  });
+  csSock.on("support:msg", (m) => { if (m.userId === csUid && !csMsgList.some((x) => x.id === m.id)) { csMsgList.push(m); paintMsgs(); } });
+}
 $("btnSave").onclick = async () => {
   try {
-    const d = await call("POST", "/api/admin/settings", { rakePercent: +$("sRake").value });
-    toast(`已保存：抽水 ${d.settings.rakePercent}%`);
+    const d = await call("POST", "/api/admin/settings", { rakePercent: +$("sRake").value, bots: { enabled: $("bOn").checked, waitSec: +$("bWait").value, maxPerTable: +$("bMax").value } });
+    toast(`已保存：抽水 ${d.settings.rakePercent}% · 补位玩家${d.settings.bots.enabled ? `开启（等 ${d.settings.bots.waitSec} 秒，每桌最多 ${d.settings.bots.maxPerTable} 个）` : "关闭"}`);
   } catch (e) { toast(e.message); }
 };
 

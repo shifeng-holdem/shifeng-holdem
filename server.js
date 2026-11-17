@@ -11,20 +11,25 @@ import * as E from "./engine.js";
 import { openStore } from "./db.js";
 import * as Slot from "./slot.js";
 import { mountTables, DEFAULT_LIMITS, GAMES } from "./games/routes.js";
+import * as BOTS from "./bots.js";
 import { vipOf, inviteTitle, DEFAULT_REWARDS, mask, VIP, tierInfo, tierAmount, cleanTiers, cleanMilestones } from "./platform.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const MAX_SEATS = 9;
 const HOUSE = "__house__";
-const BOT_NAMES = ["电脑·阿杰", "电脑·小美", "电脑·老王", "电脑·Lisa", "电脑·大卫", "电脑·阿芳", "电脑·Tom", "电脑·小林", "电脑·阿强"];
 // 玩家的筹码只能由庄家（管理员）在后台赠送：注册不送、没有每日免费领取
 const DEFAULT_SETTINGS = { rakePercent: 0 };
+// 补位玩家：真人不够时由系统安排。后台可开关、调等待秒数、每桌最多几个
+const DEFAULT_BOTS = { enabled: true, waitSec: 12, maxPerTable: 3 };
+const BOT_TARGET = 4; // 一桌凑到这么多人就不再补位
 const SIGNUP_BONUS = 0;
 const NO_CHIPS_MSG = "余额不足，请联系客服获取游戏币";
 const SESSION_DAYS = 30;
 
 export async function createApp(opts = {}) {
-  const botDelay = opts.botDelay ?? [700, 1400];
+  const botDelay = opts.botDelay ?? [1000, 3000]; // 补位玩家每次行动前想 1–3 秒
+  const autoBots = opts.autoBots ?? true; // 测试里默认关掉自动补位
+  const botTickMs = opts.botTickMs ?? 1000;
   const nextHandDelay = opts.nextHandDelay ?? 8000;
   const emptyRoomMs = opts.emptyRoomMs ?? 3 * 60 * 1000; // 没有真人在线超过这么久就关闭房间
   const sweepMs = opts.sweepMs ?? 30 * 1000;
@@ -38,6 +43,7 @@ export async function createApp(opts = {}) {
   const stored = await store.getSettings();
   for (const k of ["signupBonus", "dailyFree"]) if (k in stored && stored[k] !== 0) await store.setSetting(k, 0);
   let settings = { ...DEFAULT_SETTINGS, rakePercent: Number(stored.rakePercent) || 0 };
+  const botCfg = { ...DEFAULT_BOTS, ...(stored.bots || {}) };
   // 每个游戏的最低/最高下注（分）、邀请奖励设置、公告：存在 settings 表里，后台可以改
   const limits = Object.fromEntries(Object.entries(DEFAULT_LIMITS).map(([g, d]) => [g, { ...d, ...((stored.gameLimits || {})[g] || {}) }]));
   const rewards = { invite: { ...DEFAULT_REWARDS.invite, ...((stored.rewards || {}).invite || {}) } };
@@ -179,6 +185,14 @@ export async function createApp(opts = {}) {
   });
   app.delete("/api/me/avatar", auth, async (req, res, next) => { try { const ver = await store.clearAvatar(req.user.id); updateMemberAvatar(req.user.id, ver); pushMe(req.user.id); res.json({ ok: true, avatarVer: ver }); } catch (e) { next(e); } });
   // 头像：/api/avatar/10001?v=3 ；没上传的生成默认头像（首字 + 紫金渐变）
+  const avatarSvg = (ch, hue) => { const esc = (x) => x.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128"><defs><radialGradient id="g" cx="35%" cy="28%" r="80%"><stop offset="0" stop-color="hsl(${hue},55%,52%)"/><stop offset=".6" stop-color="hsl(${hue},60%,28%)"/><stop offset="1" stop-color="#1a0b2e"/></radialGradient><linearGradient id="t" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff3c4"/><stop offset=".55" stop-color="#f5d77a"/><stop offset="1" stop-color="#b8860b"/></linearGradient></defs><rect width="128" height="128" fill="url(#g)"/><circle cx="64" cy="64" r="58" fill="none" stroke="#d4af37" stroke-width="5"/><text x="64" y="68" text-anchor="middle" dominant-baseline="middle" font-family="PingFang SC,Noto Sans CJK SC,sans-serif" font-size="62" font-weight="800" fill="#6a4a0a" dy="3">${esc(ch.toUpperCase())}</text><text x="64" y="68" text-anchor="middle" dominant-baseline="middle" font-family="PingFang SC,Noto Sans CJK SC,sans-serif" font-size="62" font-weight="800" fill="url(#t)">${esc(ch.toUpperCase())}</text></svg>`; };
+  // 补位玩家的默认头像（按名字生成，和真人默认头像同一种样式）
+  app.get("/api/avatar/n/:name", (req, res) => {
+    const name = String(req.params.name || "").slice(0, 20); const ch = [...name][0] || "?";
+    let h = 0; for (const c of name) h = (h * 31 + c.codePointAt(0)) >>> 0;
+    res.set("Cache-Control", "public, max-age=86400");
+    res.type("image/svg+xml").send(avatarSvg(ch, [270, 285, 300, 260, 315][h % 5]));
+  });
   app.get("/api/avatar/:pid", async (req, res, next) => {
     try {
       const u = await store.getUserByPublicId(Number(req.params.pid));
@@ -190,7 +204,7 @@ export async function createApp(opts = {}) {
       if (a) return res.type(a.mime).send(a.data);
       const ch = [...u.username][0] || "?"; const esc = (x) => x.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
       const hue = [270, 285, 300, 260, 315][u.publicId % 5];
-      res.type("image/svg+xml").send(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128"><defs><radialGradient id="g" cx="35%" cy="28%" r="80%"><stop offset="0" stop-color="hsl(${hue},55%,52%)"/><stop offset=".6" stop-color="hsl(${hue},60%,28%)"/><stop offset="1" stop-color="#1a0b2e"/></radialGradient><linearGradient id="t" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff3c4"/><stop offset=".55" stop-color="#f5d77a"/><stop offset="1" stop-color="#b8860b"/></linearGradient></defs><rect width="128" height="128" fill="url(#g)"/><circle cx="64" cy="64" r="58" fill="none" stroke="#d4af37" stroke-width="5"/><text x="64" y="68" text-anchor="middle" dominant-baseline="middle" font-family="PingFang SC,Noto Sans CJK SC,sans-serif" font-size="62" font-weight="800" fill="#6a4a0a" dy="3">${esc(ch.toUpperCase())}</text><text x="64" y="68" text-anchor="middle" dominant-baseline="middle" font-family="PingFang SC,Noto Sans CJK SC,sans-serif" font-size="62" font-weight="800" fill="url(#t)">${esc(ch.toUpperCase())}</text></svg>`);
+      res.type("image/svg+xml").send(avatarSvg(ch, hue));
     } catch (e) { next(e); }
   });
   app.get("/api/me/ledger", auth, async (req, res, next) => { try { res.json(await store.ledger(req.user.id, 30)); } catch (e) { next(e); } });
@@ -294,6 +308,7 @@ export async function createApp(opts = {}) {
     return { start, sb, bb, timer, public: isPublic };
   }
 
+  const avatarOf = (m) => (m.bot ? `/api/avatar/n/${encodeURIComponent(m.name)}` : m.pid ? `/api/avatar/${m.pid}?v=${m.av || 0}` : "");
   function viewFor(room, token) {
     const you = room.members.findIndex((m) => m.token === token && !m.left);
     const g = room.g;
@@ -306,9 +321,9 @@ export async function createApp(opts = {}) {
         const m = room.members[i];
         const show = i === you || (reveal && !p.folded && !p.out);
         return {
-          name: p.name, bot: p.bot, chips: p.chips, bet: p.bet, total: p.total, folded: p.folded, allIn: p.allIn,
+          name: p.name, chips: p.chips, bet: p.bet, total: p.total, folded: p.folded, allIn: p.allIn,
           out: p.out, sitOut: p.sitOut, last: p.last, won: p.won, handName: show ? p.handName : "",
-          hole: show ? p.hole : [], cards: p.hole.length, pid: m ? m.pid : null, av: m ? m.av : 0, vip: m ? m.vip || 0 : 0, connected: !!(m && (m.bot || m.connected)), left: !!(m && m.left),
+          hole: show ? p.hole : [], cards: p.hole.length, pid: m ? m.pid : null, av: m ? m.av : 0, avu: m ? avatarOf(m) : "", vip: m ? m.vip || 0 : 0, connected: !!(m && (m.bot || m.connected)), left: !!(m && m.left),
         };
       }),
       legal: you >= 0 && betting(g) && g.current === you ? E.legal(g, you) : null,
@@ -318,7 +333,7 @@ export async function createApp(opts = {}) {
     };
     return {
       code: room.code, you, isHost: room.hostToken === token, cfg: room.cfg, started: !!g,
-      members: room.members.map((m, i) => ({ i, name: m.name, pid: m.pid, av: m.av, vip: m.vip || 0, bot: m.bot, connected: m.bot || m.connected, left: m.left, host: m.token === room.hostToken })).filter((m) => !m.left),
+      members: room.members.map((m, i) => ({ i, name: m.name, pid: m.pid, av: m.av, avu: avatarOf(m), vip: m.vip || 0, connected: m.bot || m.connected, left: m.left, host: m.token === room.hostToken })).filter((m) => !m.left),
       game, deadline: room.deadline, nextAt: room.nextAt, now: Date.now(),
     };
   }
@@ -343,7 +358,7 @@ export async function createApp(opts = {}) {
     if (betting(g)) {
       const i = g.current; const p = g.players[i]; const m = room.members[i];
       if (p.bot) {
-        room.turnTimer = setTimeout(() => { if (room.g === g) doAction(room, E.aiDecide(g, 150)); }, botDelay[0] + Math.random() * (botDelay[1] - botDelay[0]));
+        room.turnTimer = setTimeout(() => { if (room.g === g) doAction(room, BOTS.decide(BOTS.botView(g, i))); }, botDelay[0] + Math.random() * (botDelay[1] - botDelay[0]));
       } else if (!m || m.left || !m.connected || p.sitOut) {
         room.turnTimer = setTimeout(() => { if (room.g === g) doAction(room, E.legal(g, i).check ? { type: "check" } : { type: "fold" }); }, autoActDelay);
       } else {
@@ -376,7 +391,7 @@ export async function createApp(opts = {}) {
       const host = room.members.find((m) => m.token === room.hostToken);
       list.push({
         code: room.code, host: host ? host.name : "", seats, maxSeats: MAX_SEATS, full: seats >= MAX_SEATS,
-        humans: activeMembers(room).filter((m) => !m.bot).length, sb: room.cfg.sb, bb: room.cfg.bb, start: room.cfg.start,
+        sb: room.cfg.sb, bb: room.cfg.bb, start: room.cfg.start,
         status: room.g ? "游戏中" : "等待中", created: room.created,
       });
     }
@@ -395,6 +410,7 @@ export async function createApp(opts = {}) {
 
   function nextHand(room) {
     if (!room.g || !["handover", "gameover"].includes(room.g.stage)) return;
+    botMaintain(room, true);
     withSitOut(room);
     if (!E.canStart(room.g)) { room.g.stage = "gameover"; update(room); return; }
     room.g.rakePct = settings.rakePercent;
@@ -438,12 +454,67 @@ export async function createApp(opts = {}) {
     }
   }
 
+  // ---------- 补位玩家 ----------
+  // 真人优先互相匹配；等了 botCfg.waitSec 秒还不够人才补位。补位玩家的筹码由系统账户（庄家）出资、离桌时退回系统账户，
+  // 从不经过任何真人的余额；没有玩家 ID，不记战绩、不上跑马灯。
+  function startGame(room) {
+    const ms = activeMembers(room); if (room.g || ms.length < 2) return false;
+    room.members = ms;
+    room.g = E.newGame(ms.map((m) => ({ name: m.name, bot: m.bot })), { ...room.cfg, rake: settings.rakePercent });
+    update(room); return true;
+  }
+  async function addBot(room) {
+    if (activeMembers(room).length >= MAX_SEATS || (room.g && betting(room.g))) return null;
+    const used = new Set(room.members.filter((m) => !m.left).map((m) => m.name));
+    const m = addMember(room, { name: BOTS.pickName(used), bot: true, vip: BOTS.pickVip() });
+    if (!m) return null;
+    try { await debit(m, room.cfg.start, `补位玩家带入 房间${room.code}`); } catch (e) { console.error(e); }
+    return m;
+  }
+  // between = 两手牌之间（或还没开始），只有这时才增减补位玩家
+  function botMaintain(room, between = !betting(room.g)) {
+    if (!rooms.has(room.code) || !between) return false;
+    const act = activeMembers(room), humans = act.filter((m) => !m.bot), bots = act.filter((m) => m.bot);
+    const online = humans.filter((m) => m.connected);
+    let changed = false;
+    const drop = (m) => { leave(room, m.token, "补位玩家离桌"); changed = true; };
+    if (!autoBots) return false;
+    if (!botCfg.enabled || !online.length) { bots.forEach(drop); return changed; }
+    const want = Math.min(botCfg.maxPerTable, Math.max(0, BOT_TARGET - humans.length), MAX_SEATS - humans.length);
+    // 输光的补位玩家离桌；人够了 / 有真人等座位时多余的补位玩家离桌
+    const chipsOf = (m) => (room.g ? room.g.players[room.members.indexOf(m)].chips : m.stack);
+    let keep = bots.filter((m) => { if (chipsOf(m) <= 0) { drop(m); return false; } return true; });
+    if (room.seatWanted && Date.now() - room.seatWanted < 60000 && keep.length) { drop(keep.pop()); room.seatWanted = null; }
+    while (keep.length > want) drop(keep.pop());
+    if (!rooms.has(room.code)) return true;
+    // 还不够人：开局前要等真人匹配一会儿；牌局进行中（有人离开 / 补位玩家输光）就直接补
+    const waited = Date.now() - (room.waitFrom || room.created) >= botCfg.waitSec * 1000;
+    if (keep.length < want && (room.g || waited)) {
+      if (room.botAdding) return changed; room.botAdding = true;
+      const n = want - keep.length;
+      Promise.all(Array.from({ length: n }, () => addBot(room))).finally(() => {
+        room.botAdding = false;
+        if (!rooms.has(room.code)) return;
+        if (!room.g) startGame(room); else update(room);
+      });
+      return true;
+    }
+    if (!room.g && waited && act.length >= 2 && bots.length) startGame(room);
+    if (changed && rooms.has(room.code)) update(room);
+    return changed;
+  }
+  const botTicker = setInterval(() => {
+    for (const room of [...rooms.values()]) {
+      try { if (!betting(room.g)) botMaintain(room); } catch (e) { console.error("bots", e); }
+    }
+  }, botTickMs); botTicker.unref();
+
   // ---------- Socket ----------
   io.use(async (socket, next) => {
     try {
       const u = await userFromToken(socket.handshake.auth && socket.handshake.auth.token);
       if (!u) return next(new Error("NEED_LOGIN"));
-      socket.data = { user: { id: u.id, username: u.username }, code: null, token: "u" + u.id };
+      socket.data = { user: { id: u.id, username: u.username }, code: null, token: "u" + u.id, isAdmin: !!u.isAdmin };
       next();
     } catch (e) { next(new Error("SERVER")); }
   });
@@ -466,7 +537,7 @@ export async function createApp(opts = {}) {
         const code = newCode();
         try { await store.adjust(uid, -cfg.start, `带入 房间${code}`); } catch { return ack({ ok: false, error: NO_CHIPS_MSG, noChips: true }); }
         pushMe(uid);
-        const room = { code, cfg, members: [], g: null, hostToken: null, lastActive: Date.now(), created: Date.now(), emptySince: null };
+        const room = { code, cfg, members: [], g: null, hostToken: null, lastActive: Date.now(), created: Date.now(), emptySince: null, waitFrom: Date.now() };
         rooms.set(code, room);
         const m = addMember(room, { name: u.username, bot: false, userId: uid, socketId: socket.id, pid: u.publicId, av: u.avatarVer, vip: vipOf(u.turnover).level });
         room.hostToken = m.token; attach(room, m);
@@ -485,8 +556,13 @@ export async function createApp(opts = {}) {
           attach(room, m); m.sitOutReq = false;
           ack({ ok: true, code }); return update(room);
         }
-        if (activeMembers(room).length >= MAX_SEATS) return ack({ ok: false, error: "房间已满（最多 9 人）" });
-        if (room.g && room.g.players.length >= MAX_SEATS && betting(room.g)) return ack({ ok: false, error: "暂时没有空位，请等这手牌结束再试" });
+        if (activeMembers(room).length >= MAX_SEATS || (room.g && room.g.players.length >= MAX_SEATS && betting(room.g))) {
+          // 满桌但有补位玩家：两手之间直接让出座位；正在打的话这手结束后让出
+          const bot = activeMembers(room).find((x) => x.bot);
+          if (bot && !betting(room.g)) leave(room, bot.token, "补位玩家离桌");
+          else if (bot) { room.seatWanted = Date.now(); return ack({ ok: false, error: "牌桌已满，这手结束后会空出座位，请稍后再试" }); }
+          else return ack({ ok: false, error: activeMembers(room).length >= MAX_SEATS ? "房间已满（最多 9 人）" : "暂时没有空位，请等这手牌结束再试" });
+        }
         const u = await fresh(); if (!u) return ack({ ok: false, error: "账号不可用" });
         if (u.balance < room.cfg.start) return ack({ ok: false, error: `${NO_CHIPS_MSG}（带入需要 ${E.money(room.cfg.start)}，你有 ${E.money(u.balance)}）`, noChips: true });
         try { await store.adjust(uid, -room.cfg.start, `带入 房间${code}`); } catch { return ack({ ok: false, error: NO_CHIPS_MSG, noChips: true }); }
@@ -496,6 +572,7 @@ export async function createApp(opts = {}) {
         if (!room) return refund("房间已关闭");
         if (room.members.find((x) => x.userId === uid && !x.left)) return refund("你已经在这个房间里");
         if (activeMembers(room).length >= MAX_SEATS) return refund("房间已满（最多 9 人）");
+        room.waitFrom = Date.now(); // 有新真人进来：重新给真人匹配留出时间
         m = addMember(room, { name: u.username, bot: false, userId: uid, socketId: socket.id, pid: u.publicId, av: u.avatarVer, vip: vipOf(u.turnover).level });
         if (!m) return refund("暂时没有空位，请等这手牌结束再试");
         if (!room.hostToken) room.hostToken = m.token;
@@ -505,31 +582,10 @@ export async function createApp(opts = {}) {
       } catch (e) { console.error(e); ack({ ok: false, error: "服务器出错" }); }
     });
 
-    socket.on("addBot", async () => {
-      const room = roomOf(); if (!room || !isHost(room)) return;
-      if (activeMembers(room).length >= MAX_SEATS) return socket.emit("toast", "座位已满");
-      if (room.g && betting(room.g) && room.g.players.length >= MAX_SEATS) return socket.emit("toast", "请等这手牌结束");
-      const used = new Set(room.members.filter((m) => !m.left).map((m) => m.name));
-      const name = BOT_NAMES.find((n) => !used.has(n)) || "电脑" + room.members.length;
-      const m = addMember(room, { name, bot: true });
-      if (!m) return socket.emit("toast", "暂时没有空位");
-      try { await debit(m, room.cfg.start, `电脑玩家带入 房间${room.code}`); } catch (e) { console.error(e); }
-      update(room);
-    });
-
-    socket.on("removeBot", (i) => {
-      const room = roomOf(); if (!room || !isHost(room)) return;
-      const m = room.members[i]; if (!m || !m.bot || m.left) return;
-      leave(room, m.token, "电脑玩家离桌");
-    });
-
     socket.on("start", () => {
       const room = roomOf(); if (!room || !isHost(room) || room.g) return;
-      const ms = activeMembers(room);
-      if (ms.length < 2) return socket.emit("toast", "至少需要 2 名玩家");
-      room.members = ms;
-      room.g = E.newGame(ms.map((m) => ({ name: m.name, bot: m.bot })), { ...room.cfg, rake: settings.rakePercent });
-      update(room);
+      if (activeMembers(room).length < 2) return socket.emit("toast", "至少需要 2 名玩家，正在为你匹配…");
+      startGame(room);
     });
 
     socket.on("action", (a = {}) => {
@@ -575,6 +631,7 @@ export async function createApp(opts = {}) {
       if (m) { m.connected = false; m.socketId = null; if (!humansOnline(room)) room.emptySince = Date.now(); update(room); }
     });
 
+    socket.on("adminWatch", () => { if (socket.data.isAdmin) socket.join("admins"); }); // 后台：实时收到新客服消息
     socket.on("watchRooms", (ack) => { socket.join("lobby"); if (typeof ack === "function") ack(listRooms()); });
     socket.on("unwatchRooms", () => socket.leave("lobby"));
     socket.on("listRooms", (ack) => { if (typeof ack === "function") ack(listRooms()); });
@@ -593,7 +650,7 @@ export async function createApp(opts = {}) {
   aget("/stats", async (_req, res) => {
     const h = await store.getUser(houseId);
     let seated = 0, bots = 0; for (const r of rooms.values()) for (const m of activeMembers(r)) m.bot ? bots++ : seated++;
-    res.json({ online: userSockets.size, sockets: io.engine.clientsCount, rooms: rooms.size, seated, bots, users: await store.countUsers(), house: h.balance, tableChips: tableChips(), settings, storage: store.kind });
+    res.json({ online: userSockets.size, sockets: io.engine.clientsCount, rooms: rooms.size, seated, bots, users: await store.countUsers(), house: h.balance, tableChips: tableChips(), settings: { ...settings, bots: botCfg }, storage: store.kind });
   });
   aget("/users", async (req, res) => {
     const list = await store.searchUsers(String(req.query.q || ""), 100);
@@ -643,9 +700,54 @@ export async function createApp(opts = {}) {
   apost("/settings", async (req, res) => {
     const b = req.body || {};
     if (b.rakePercent !== undefined) { const v = Number(b.rakePercent); if (!(v >= 0 && v <= 10)) return res.status(400).json({ error: "抽水比例需在 0–10% 之间" }); settings.rakePercent = Math.round(v * 10) / 10; }
+    if (b.bots !== undefined) {
+      const x = b.bots || {};
+      if (x.waitSec !== undefined) { const v = Math.trunc(Number(x.waitSec)); if (!(v >= 3 && v <= 120)) return res.status(400).json({ error: "等待秒数需在 3–120 之间" }); botCfg.waitSec = v; }
+      if (x.maxPerTable !== undefined) { const v = Math.trunc(Number(x.maxPerTable)); if (!(v >= 0 && v <= 8)) return res.status(400).json({ error: "每桌最多补位人数需在 0–8 之间" }); botCfg.maxPerTable = v; }
+      if (x.enabled !== undefined) botCfg.enabled = !!x.enabled;
+      await store.setSetting("bots", botCfg);
+    }
     await store.setSetting("rakePercent", settings.rakePercent);
-    res.json({ ok: true, settings });
+    res.json({ ok: true, settings: { ...settings, bots: botCfg } });
   });
+  // ---------- 客服消息（玩家 ↔ 管理员，Socket.IO 实时推送，消息存数据库） ----------
+  // 存原文，显示时两端都做 HTML 转义；去掉控制字符；每人每秒最多 1 条、每条最多 500 字
+  const CHAT_MAX = 500, chatGap = opts.chatGapMs ?? 1000, lastChat = new Map();
+  const cleanMsg = (b) => String(b ?? "").replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, "").replace(/\r\n?/g, "\n").trim();
+  function chatCheck(key, body) {
+    if (!body) return "请输入内容";
+    if ([...body].length > CHAT_MAX) return `每条消息最多 ${CHAT_MAX} 字`;
+    const t = lastChat.get(key) || 0; if (Date.now() - t < chatGap) return "发送太快了，请稍等一下";
+    lastChat.set(key, Date.now()); return null;
+  }
+  const toUser = (uid, ev, data) => { for (const sid of userSockets.get(uid) || []) io.to(sid).emit(ev, data); };
+  app.get("/api/support/messages", auth, async (req, res, next) => {
+    try { const list = await store.chatList(req.user.id); await store.chatRead(req.user.id, "user"); res.json({ list }); } catch (e) { next(e); }
+  });
+  app.get("/api/support/unread", auth, async (req, res, next) => { try { res.json({ unread: await store.chatUnread(req.user.id) }); } catch (e) { next(e); } });
+  app.post("/api/support/messages", auth, async (req, res, next) => {
+    try {
+      const body = cleanMsg(req.body?.body); const e = chatCheck("u" + req.user.id, body); if (e) return res.status(e.startsWith("发送太快") ? 429 : 400).json({ error: e });
+      const m = await store.chatAdd(req.user.id, false, body);
+      toUser(req.user.id, "support:msg", m);
+      io.to("admins").emit("support:new", { ...m, username: req.user.username, publicId: req.user.publicId });
+      res.json({ ok: true, message: m });
+    } catch (e) { next(e); }
+  });
+  aget("/support", async (_req, res) => res.json(await store.chatConversations()));
+  aget("/support/:uid", async (req, res) => {
+    const uid = Number(req.params.uid); const u = await store.getUser(uid); if (!u || u.isHouse) return res.status(404).json({ error: "没有这个玩家" });
+    const list = await store.chatList(uid); await store.chatRead(uid, "admin"); io.to("admins").emit("support:read", { userId: uid });
+    res.json({ user: { id: u.id, publicId: u.publicId, username: u.username, balance: u.balance }, list });
+  });
+  apost("/support/:uid", async (req, res) => {
+    const uid = Number(req.params.uid); const u = await store.getUser(uid); if (!u || u.isHouse) return res.status(404).json({ error: "没有这个玩家" });
+    const body = cleanMsg(req.body?.body); const e = chatCheck("a" + req.user.id, body); if (e) return res.status(e.startsWith("发送太快") ? 429 : 400).json({ error: e });
+    const m = await store.chatAdd(uid, true, body);
+    toUser(uid, "support:msg", m); io.to("admins").emit("support:msg", m);
+    res.json({ ok: true, message: m });
+  });
+
   // ---------- 平台：邀请好友 / 跑马灯 / 公告 ----------
   // 被邀请人第一次完成任意一局游戏时：好友得固定奖励，邀请人按第几位成功邀请拿对应档位的固定奖励，
   // 累计人数达到里程碑时再一次性发里程碑奖励。默认不限人数。没有提成、没有多级，和好友的余额、下注都无关。
@@ -713,13 +815,14 @@ export async function createApp(opts = {}) {
 
   // 部署/重启前把桌上的筹码全部返还到余额
   async function shutdown({ closeStore = true } = {}) {
-    clearInterval(sweeper);
+    clearInterval(sweeper); clearInterval(botTicker);
     for (const room of [...rooms.values()]) closeRoom(room, "服务器维护，筹码已返还到余额");
     await idle();
     io.close(); if (closeStore) await store.close();
   }
 
-  return { app, server, io, rooms, listRooms, sweep, store, idle, shutdown, houseId, getSettings: () => settings };
+  return { app, server, io, rooms, listRooms, sweep, store, idle, shutdown, houseId, getSettings: () => settings, getBots: () => botCfg,
+    addBot: (code) => { const r = rooms.get(code); return r ? addBot(r).then((m) => { update(r); return m; }) : null; } }; // addBot 只给测试用，玩家没有任何入口
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])) {
