@@ -1,4 +1,4 @@
-hall_welcome|欢迎来到时烽！
+hall_welcome|欢迎来到时烽国际娱乐！
 pk_turn|轮到你了
 pk_check|过牌
 pk_call|跟注

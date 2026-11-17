@@ -1,7 +1,7 @@
 {
   "name": "shifeng-holdem",
   "version": "1.0.0",
-  "description": "时烽德州：多人在线德州扑克（游戏筹码，非真钱）",
+  "description": "时烽国际娱乐：多人在线德州扑克（游戏筹码，非真钱）",
   "type": "module",
   "main": "server.js",
   "scripts": {

@@ -6,7 +6,7 @@
 <meta name="robots" content="noindex">
 <meta name="theme-color" content="#1a0b2e">
 <link rel="icon" href="data:,">
-<title>时烽德州 · 庄家后台</title>
+<title>时烽国际娱乐 · 庄家后台</title>
 <style>
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 /* 皇家紫晶主题 */
@@ -75,7 +75,7 @@ footer.safe{text-align:center;font-size:11px;color:#b9a6d6;opacity:.75;padding:1
 <body>
 <div id="toast" class="hidden"></div>
 <div class="wrap">
-  <h1>时烽德州 · 庄家后台</h1>
+  <h1>时烽国际娱乐 · 庄家后台</h1>
   <div class="muted">紫晶为席，以牌会友 · 庄家后台</div>
 
   <div id="loginBox" class="box hidden">
@@ -345,7 +345,7 @@ $("anSave").onclick = async () => { try { const d = await call("POST", "/api/adm
 let CONV = [], csUid = null, csMsgList = [], csSock = null, csBusy = false;
 const csTime = (t) => new Date(t).toLocaleString("zh-CN", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" });
 function beep() { try { const A = new (window.AudioContext || window.webkitAudioContext)(); [880, 1320].forEach((f, i) => { const o = A.createOscillator(), g = A.createGain(); o.frequency.value = f; o.connect(g); g.connect(A.destination); g.gain.setValueAtTime(0.0001, A.currentTime + i * 0.16); g.gain.exponentialRampToValueAtTime(0.25, A.currentTime + i * 0.16 + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, A.currentTime + i * 0.16 + 0.15); o.start(A.currentTime + i * 0.16); o.stop(A.currentTime + i * 0.16 + 0.16); }); } catch (e) {} }
-function csBadge() { const n = CONV.reduce((a, c) => a + (c.unread || 0), 0); $("csBadge").textContent = n > 99 ? "99+" : n; $("csBadge").classList.toggle("hidden", !n); document.title = (n ? `(${n}) ` : "") + "时烽德州 · 庄家后台"; }
+function csBadge() { const n = CONV.reduce((a, c) => a + (c.unread || 0), 0); $("csBadge").textContent = n > 99 ? "99+" : n; $("csBadge").classList.toggle("hidden", !n); document.title = (n ? `(${n}) ` : "") + "时烽国际娱乐 · 庄家后台"; }
 function paintConv() {
   $("csConv").innerHTML = CONV.length ? CONV.map((c) => `<div class="conv ${c.userId === csUid ? "on" : ""}" onclick="openConv(${c.userId})"><div class="row" style="justify-content:space-between;flex-wrap:nowrap"><b><span class="pid">ID ${c.publicId}</span> · ${esc(c.username)}</b>${c.unread ? `<i class="badge">${c.unread}</i>` : ""}</div><div class="muted cvl">${c.lastFromAdmin ? "我：" : ""}${esc(c.last)}</div><div class="muted" style="font-size:11px">${csTime(c.at)}</div></div>`).join("") : `<div class="muted" style="padding:8px 0">还没有客服消息</div>`;
   csBadge();

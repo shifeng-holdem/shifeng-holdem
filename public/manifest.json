@@ -1,7 +1,7 @@
 {
-  "name": "时烽游戏大厅",
-  "short_name": "时烽",
-  "description": "时烽德州 · 时烽麻将消消乐（游戏币娱乐，不涉及真钱）",
+  "name": "时烽国际娱乐",
+  "short_name": "时烽国际娱乐",
+  "description": "时烽国际娱乐 · 德州扑克 · 时烽麻将消消乐（游戏币娱乐，不涉及真钱）",
   "lang": "zh-CN",
   "start_url": "/?source=pwa",
   "scope": "/",

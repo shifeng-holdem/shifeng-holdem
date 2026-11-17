@@ -1,4 +1,4 @@
-// 时烽德州服务器：账号 + 余额 + 多人牌桌 + 管理后台
+// 时烽国际娱乐服务器：账号 + 余额 + 多人牌桌 + 管理后台
 // 全部是游戏筹码：没有真钱、没有加密货币、不能购买或兑现筹码。
 import express from "express";
 import { createServer } from "node:http";
@@ -769,7 +769,7 @@ export async function createApp(opts = {}) {
     } catch (e) { next(e); }
   });
   let marqueeCache = { at: 0, data: [] };
-  const GAME_NAME = { ...GAMES, mahjong: MJ_NAME, poker: "时烽德州" };
+  const GAME_NAME = { ...GAMES, mahjong: MJ_NAME, poker: "德州扑克" };
   app.get("/api/marquee", async (_req, res, next) => {
     try {
       if (Date.now() - marqueeCache.at > 10000) marqueeCache = { at: Date.now(), data: (await store.recentBigWins(20)).map((x) => ({ name: mask(x.username), game: GAME_NAME[x.game] || x.game, win: x.win, x: x.bet > 0 ? Math.floor(x.win / x.bet) : 0, at: x.at })) };
@@ -831,7 +831,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.a
     databaseUrl: process.env.DATABASE_URL, dataFile: process.env.DATA_FILE || path.join(__dirname, "data", "db.json"),
     adminUsername: process.env.ADMIN_USERNAME, adminPassword: process.env.ADMIN_PASSWORD,
   });
-  ctx.server.listen(PORT, () => console.log(`时烽德州服务器已启动：http://localhost:${PORT}（存储：${ctx.store.kind}）`));
+  ctx.server.listen(PORT, () => console.log(`时烽国际娱乐服务器已启动：http://localhost:${PORT}（存储：${ctx.store.kind}）`));
   let stopping = false;
   for (const sig of ["SIGTERM", "SIGINT"]) process.on(sig, async () => {
     if (stopping) return; stopping = true;
