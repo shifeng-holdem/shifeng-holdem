@@ -2,7 +2,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { boot, api, player, adminToken } from "../testlib/helpers.js";
-import { vipOf, inviteTitle, mask } from "../platform.js";
+import { vipOf, inviteTitle, mask, tierAmount, tierInfo, DEFAULT_REWARDS } from "../platform.js";
 
 const reg = async (ctx, username, ip, invite) => {
   const r = await fetch(ctx.url + "/api/register", { method: "POST", headers: { "content-type": "application/json", "x-forwarded-for": ip }, body: JSON.stringify({ username, password: "secret123", invite }) });
@@ -52,7 +52,7 @@ test("邀请好友：每位邀请人最多奖励 N 位；后台关闭或改金�
   const ctx = await boot();
   try {
     const at = await adminToken(ctx);
-    assert.equal((await api(ctx, "POST", "/api/admin/rewards", { invite: { cap: 2, amount: 300 } }, at)).status, 200);
+    assert.equal((await api(ctx, "POST", "/api/admin/rewards", { invite: { cap: 2, amount: 300, tiers: [{ from: 1, amount: 300 }] } }, at)).status, 200);
     assert.equal((await api(ctx, "POST", "/api/admin/rewards", { invite: { amount: -1 } }, at)).status, 400);
     const a = await reg(ctx, "大使", "20.0.0.1"); const aid = a.data.user.id;
     for (let i = 0; i < 4; i++) {
@@ -80,7 +80,7 @@ test("邀请好友：每位邀请人最多奖励 N 位；后台关闭或改金�
 test("VIP 外观等级、称号、打码、跑马灯与公告", async () => {
   assert.equal(vipOf(0).level, 0); assert.equal(vipOf(4999).level, 0); assert.equal(vipOf(5000).title, "青铜"); assert.equal(vipOf(1e9).level, 9);
   assert.equal(vipOf(1e9).next, null); assert.ok(vipOf(10000).progress > 0 && vipOf(10000).progress < 1);
-  assert.equal(inviteTitle(0).title, null); assert.equal(inviteTitle(5).title, "紫晶推广大使"); assert.equal(inviteTitle(20).title, "皇家荣誉大使");
+  assert.equal(inviteTitle(0).title, null); assert.equal(inviteTitle(5).title, "紫晶新星"); assert.equal(inviteTitle(10).title, "紫晶推广大使"); assert.equal(inviteTitle(100).title, "皇家荣誉大使");
   assert.equal(mask("pengc11"), "p***1"); assert.equal(mask("小美"), "小*"); assert.equal(mask("Laura"), "L***a");
   const ctx = await boot();
   try {
@@ -98,4 +98,70 @@ test("VIP 外观等级、称号、打码、跑马灯与公告", async () => {
     const an = (await api(ctx, "GET", "/api/announcements")).data; assert.equal(an[0].title, "新游戏上线");
     assert.equal((await api(ctx, "POST", "/api/admin/announcements", { list: [] }, p.token)).status, 403);
   } finally { await ctx.close(); }
+});
+
+test("邀请阶梯：默认不限人数；1–10 位 5.00、11–50 位 8.00、51 位起 10.00；里程碑 10/50/100 位各只发一次", async () => {
+  // 纯函数：档位边界
+  for (const [n, a] of [[1, 500], [10, 500], [11, 800], [50, 800], [51, 1000], [100, 1000], [5000, 1000]]) assert.equal(tierAmount(n), a, `第 ${n} 位`);
+  assert.equal(DEFAULT_REWARDS.invite.cap, 0, "默认不限人数");
+  assert.deepEqual(tierInfo(0).current, { from: 1, amount: 500, to: 10 }); assert.equal(tierInfo(0).next.need, 10);
+  assert.equal(tierInfo(9).next.need, 1); assert.equal(tierInfo(10).current.amount, 800); assert.equal(tierInfo(10).next.need, 40);
+  assert.equal(tierInfo(50).current.amount, 1000); assert.equal(tierInfo(50).next, null);
+  const ctx = await boot();
+  try {
+    const cfg = DEFAULT_REWARDS.invite, st = ctx.store;
+    const inv = await st.createUser("阶梯大使", "!", 0, { regIp: "30.0.0.1" });
+    const BON = { 10: 2000, 50: 10000, 100: 30000 };
+    let expect = 0;
+    for (let k = 1; k <= 101; k++) {
+      const f = await st.createUser("友" + k, "!", 0, { invitedBy: inv.id, inviteStatus: "pending", regIp: "31.0." + (k >> 8) + "." + (k & 255) });
+      assert.equal(await st.inviteReward(f.id, cfg), "rewarded");
+      expect += tierAmount(k) + (BON[k] || 0);
+      assert.equal(await bal(ctx, inv.id), expect, `第 ${k} 位后邀请人余额`);
+      assert.equal(await bal(ctx, f.id), 500, "好友固定 5.00");
+      assert.equal(await st.inviteReward(f.id, cfg), "rewarded"); assert.equal(await bal(ctx, inv.id), expect, "同一好友不重复发");
+    }
+    assert.equal(expect, 10 * 500 + 40 * 800 + 51 * 1000 + 2000 + 10000 + 30000, "共 1,300.00");
+    // 里程碑只发一次：再邀请一位，配置里的 10/50/100 位里程碑都不会再发；后加的、已经越过的里程碑只补发一次
+    const g = await st.createUser("友102", "!", 0, { invitedBy: inv.id, inviteStatus: "pending", regIp: "32.0.0.1" });
+    await st.inviteReward(g.id, { ...cfg, milestones: [...cfg.milestones, { at: 5, bonus: 700 }] });
+    assert.equal(await bal(ctx, inv.id), expect + 1000 + 700);
+    const h = await st.createUser("友103", "!", 0, { invitedBy: inv.id, inviteStatus: "pending", regIp: "32.0.0.2" });
+    await st.inviteReward(h.id, { ...cfg, milestones: [...cfg.milestones, { at: 5, bonus: 700 }] });
+    assert.equal(await bal(ctx, inv.id), expect + 2000 + 700, "里程碑不重复");
+    const claims = await st.userClaims(inv.id);
+    assert.equal(claims.filter((c) => c.type === "milestone").length, 4); assert.equal(claims.filter((c) => c.type === "invite").length, 103);
+    // 后台：档位 / 里程碑 / 上限的校验与保存；留空或 0 = 不限
+    const at = await adminToken(ctx);
+    assert.equal((await api(ctx, "POST", "/api/admin/rewards", { invite: { tiers: [{ from: 2, amount: 100 }] } }, at)).status, 400, "第一档必须从 1 开始");
+    assert.equal((await api(ctx, "POST", "/api/admin/rewards", { invite: { tiers: [{ from: 1, amount: 100 }, { from: 1, amount: 200 }] } }, at)).status, 400);
+    assert.equal((await api(ctx, "POST", "/api/admin/rewards", { invite: { milestones: [{ at: 10, bonus: 1 }, { at: 10, bonus: 2 }] } }, at)).status, 400);
+    let r = await api(ctx, "POST", "/api/admin/rewards", { invite: { cap: "", tiers: [{ from: 1, amount: 600 }, { from: 21, amount: 900 }], milestones: [{ at: 20, bonus: 5000 }] } }, at);
+    assert.equal(r.status, 200); assert.equal(r.data.settings.invite.cap, 0); assert.equal(r.data.settings.invite.tiers[1].amount, 900);
+    r = await api(ctx, "GET", "/api/admin/rewards", null, at); assert.equal(r.data.totals.milestone.amount, 2000 + 10000 + 30000 + 700);
+    // 通过 API 走一遍：新邀请人第一位好友按新档位 6.00，邀请页显示当前档 / 下一档 / 进度
+    const a = await reg(ctx, "新大使", "40.0.0.1"); const f = await reg(ctx, "新朋友", "40.0.0.2", a.data.user.publicId);
+    await ctx.store.adjust(f.data.user.id, 100, "测试", "t"); await playOnce(ctx, f.data.token); await ctx.idle();
+    assert.equal(await bal(ctx, a.data.user.id), 600);
+    const me = (await api(ctx, "GET", "/api/me/invite", null, a.data.token)).data;
+    assert.equal(me.rewarded, 1); assert.equal(me.earned, 600); assert.equal(me.nextReward, 600); assert.equal(me.cap, 0);
+    assert.equal(me.tier.current.amount, 600); assert.equal(me.tier.next.from, 21); assert.equal(me.tier.next.need, 19);
+    assert.deepEqual(me.milestones, [{ at: 20, bonus: 5000, done: false }]);
+  } finally { await ctx.close(); }
+});
+
+test("升级迁移：旧的“最多 20 位”设置启动后改为不限人数 + 阶梯奖励；之后后台改的值保留", async () => {
+  const { openStore } = await import("../db.js");
+  const st = await openStore({ memory: true });
+  await st.setSetting("rewards", { invite: { enabled: true, amount: 500, cap: 20 } });
+  let ctx = await boot({ store: st });
+  try {
+    const at = await adminToken(ctx);
+    const s = (await api(ctx, "GET", "/api/admin/rewards", null, at)).data.settings.invite;
+    assert.equal(s.cap, 0); assert.equal(s.tiers.length, 3); assert.equal(s.milestones.length, 3); assert.equal(s.amount, 500);
+    await api(ctx, "POST", "/api/admin/rewards", { invite: { cap: 30 } }, at);
+  } finally { ctx.server.close(); }
+  ctx = await boot({ store: st });
+  try { const at = await adminToken(ctx); assert.equal((await api(ctx, "GET", "/api/admin/rewards", null, at)).data.settings.invite.cap, 30, "迁移只做一次"); }
+  finally { await ctx.close(); }
 });

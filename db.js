@@ -1,3 +1,4 @@
+import { tierAmount } from "./platform.js";
 // 数据存储：有 DATABASE_URL 时用 Postgres，否则退回本地 JSON 文件（仅供本地开发/测试）
 // 这里存的全部是游戏筹码，不是真钱。
 import fs from "node:fs";
@@ -255,18 +256,24 @@ class PgStore {
   // ---- 邀请好友（固定奖励，没有提成、没有多级） ----
   async firstPlay(userId) { const r = await this.q(`UPDATE users SET first_played = TRUE WHERE id=$1 AND NOT first_played RETURNING invited_by, invite_status`, [userId]); return r.rows[0] ? { invitedBy: r.rows[0].invited_by == null ? null : Number(r.rows[0].invited_by), inviteStatus: r.rows[0].invite_status } : null; }
   async countInviteesByIp(inviterId, ip) { return Number((await this.q(`SELECT count(*) AS n FROM users WHERE invited_by=$1 AND (reg_ip=$2 OR last_ip=$2)`, [inviterId, ip])).rows[0].n); }
-  async inviteReward(inviteeId, amount, cap) {
+  // 一次事务：好友固定奖励 + 邀请人按档位的奖励 + 刚达到的里程碑（reward_claims 唯一索引保证每样只发一次）
+  async inviteReward(inviteeId, cfg) {
+    const { amount, cap = 0, tiers, milestones = [] } = cfg;
     return this.tx(async (c) => {
       const me = (await c.query(`SELECT invited_by, invite_status, username FROM users WHERE id=$1 FOR UPDATE`, [inviteeId])).rows[0];
       if (!me || me.invite_status !== "pending" || me.invited_by == null) return me ? me.invite_status : null;
       const inviter = Number(me.invited_by);
       const iv = (await c.query(`SELECT username FROM users WHERE id=$1 FOR UPDATE`, [inviter])).rows[0]; if (!iv) return null;
       const n = Number((await c.query(`SELECT count(*) AS n FROM users WHERE invited_by=$1 AND invite_status='rewarded'`, [inviter])).rows[0].n);
-      if (n >= cap) { await c.query(`UPDATE users SET invite_status='capped' WHERE id=$1`, [inviteeId]); return "capped"; }
-      await c.query(`INSERT INTO reward_claims (user_id, type, ref, amount) VALUES ($1,'invite',$3,$4), ($2,'invited',$3,$4)`, [inviter, inviteeId, "u" + inviteeId, amount]);
-      for (const [uid, why] of [[inviter, `邀请好友奖励（${me.username} 首次游戏）`], [inviteeId, `受邀注册奖励（邀请人 ${iv.username}）`]]) {
-        const b = await c.query(`UPDATE users SET balance = balance + $2 WHERE id=$1 RETURNING balance`, [uid, amount]);
-        await c.query(`INSERT INTO ledger (user_id, delta, balance_after, reason, actor) VALUES ($1,$2,$3,$4,'system')`, [uid, amount, Number(b.rows[0].balance), why]);
+      if (cap > 0 && n >= cap) { await c.query(`UPDATE users SET invite_status='capped' WHERE id=$1`, [inviteeId]); return "capped"; }
+      const k = n + 1, mine = tierAmount(k, tiers);
+      const pay = [[inviter, "invite", "u" + inviteeId, mine, `邀请好友奖励（第 ${k} 位：${me.username} 首次游戏）`], [inviteeId, "invited", "u" + inviteeId, amount, `受邀注册奖励（邀请人 ${iv.username}）`]];
+      for (const m of milestones) if (k >= m.at && m.bonus > 0) pay.push([inviter, "milestone", "m" + m.at, m.bonus, `邀请里程碑奖励（累计 ${m.at} 位）`]);
+      for (const [uid, type, ref, amt, why] of pay) {
+        const ins = await c.query(`INSERT INTO reward_claims (user_id, type, ref, amount) VALUES ($1,$2,$3,$4) ON CONFLICT DO NOTHING RETURNING id`, [uid, type, ref, amt]);
+        if (!ins.rows.length || !(amt > 0)) continue;
+        const b = await c.query(`UPDATE users SET balance = balance + $2 WHERE id=$1 RETURNING balance`, [uid, amt]);
+        await c.query(`INSERT INTO ledger (user_id, delta, balance_after, reason, actor) VALUES ($1,$2,$3,$4,'system')`, [uid, amt, Number(b.rows[0].balance), why]);
       }
       await c.query(`UPDATE users SET invite_status='rewarded' WHERE id=$1`, [inviteeId]);
       return "rewarded";
@@ -281,6 +288,7 @@ class PgStore {
     const top = (await this.q(`SELECT i.id, i.username, i.public_id, count(*) AS total, sum(CASE WHEN u.invite_status='rewarded' THEN 1 ELSE 0 END) AS rewarded FROM users u JOIN users i ON i.id=u.invited_by GROUP BY i.id, i.username, i.public_id ORDER BY rewarded DESC, total DESC LIMIT 30`)).rows;
     return { byStatus: Object.fromEntries(s.map((x) => [x.st || "none", Number(x.n)])), inviters: top.map((x) => ({ userId: Number(x.id), username: x.username, publicId: Number(x.public_id), total: Number(x.total), rewarded: Number(x.rewarded) })) };
   }
+  async userClaims(userId) { return (await this.q(`SELECT type, ref, amount FROM reward_claims WHERE user_id=$1`, [userId])).rows.map((x) => ({ type: x.type, ref: x.ref, amount: Number(x.amount) })); }
   async rewardTotals() {
     const r = await this.q(`SELECT type, count(*) AS n, COALESCE(sum(amount),0) AS amount FROM reward_claims GROUP BY type`);
     return Object.fromEntries(r.rows.map((x) => [x.type, { count: Number(x.n), amount: Number(x.amount) }]));
@@ -418,15 +426,21 @@ class JsonStore {
   }
   async firstPlay(userId) { const u = this.u(userId); if (!u || u.firstPlayed) return null; u.firstPlayed = true; this.save(); return { invitedBy: u.invitedBy ?? null, inviteStatus: u.inviteStatus ?? null }; }
   async countInviteesByIp(inviterId, ip) { return this.d.users.filter((x) => x.invitedBy === inviterId && (x.regIp === ip || x.lastIp === ip)).length; }
-  async inviteReward(inviteeId, amount, cap) {
+  async inviteReward(inviteeId, cfg) {
+    const { amount, cap = 0, tiers, milestones = [] } = cfg;
     const me = this.u(inviteeId); if (!me || me.inviteStatus !== "pending" || me.invitedBy == null) return me ? me.inviteStatus : null;
     const iv = this.u(me.invitedBy); if (!iv) return null;
-    if (this.d.users.filter((x) => x.invitedBy === iv.id && x.inviteStatus === "rewarded").length >= cap) { me.inviteStatus = "capped"; this.save(); return "capped"; }
+    const n = this.d.users.filter((x) => x.invitedBy === iv.id && x.inviteStatus === "rewarded").length;
+    if (cap > 0 && n >= cap) { me.inviteStatus = "capped"; this.save(); return "capped"; }
     const C = (this.d.claims ||= []);
     if (C.some((c) => c.type === "invite" && c.ref === "u" + inviteeId)) return "rewarded";
-    C.push({ userId: iv.id, type: "invite", ref: "u" + inviteeId, amount, at: Date.now() }, { userId: inviteeId, type: "invited", ref: "u" + inviteeId, amount, at: Date.now() });
-    iv.balance += amount; this.log(iv.id, amount, iv.balance, `邀请好友奖励（${me.username} 首次游戏）`, "system");
-    me.balance += amount; this.log(me.id, amount, me.balance, `受邀注册奖励（邀请人 ${iv.username}）`, "system");
+    const k = n + 1, pay = [[iv, "invite", "u" + inviteeId, tierAmount(k, tiers), `邀请好友奖励（第 ${k} 位：${me.username} 首次游戏）`], [me, "invited", "u" + inviteeId, amount, `受邀注册奖励（邀请人 ${iv.username}）`]];
+    for (const m of milestones) if (k >= m.at && m.bonus > 0) pay.push([iv, "milestone", "m" + m.at, m.bonus, `邀请里程碑奖励（累计 ${m.at} 位）`]);
+    for (const [u, type, ref, amt, why] of pay) {
+      if (C.some((c) => c.type === type && c.userId === u.id && c.ref === ref)) continue;
+      C.push({ userId: u.id, type, ref, amount: amt, at: Date.now() });
+      if (amt > 0) { u.balance += amt; this.log(u.id, amt, u.balance, why, "system"); }
+    }
     me.inviteStatus = "rewarded"; this.save(); return "rewarded";
   }
   async inviteList(inviterId) { return this.d.users.filter((x) => x.invitedBy === inviterId).sort((a, b) => b.id - a.id).slice(0, 100).map((x) => ({ username: x.username, status: x.inviteStatus, at: x.createdAt })); }
@@ -436,6 +450,8 @@ class JsonStore {
     const inviters = [...m].map(([id, t]) => { const u = this.u(id) || {}; return { userId: id, username: u.username, publicId: u.publicId, ...t }; }).sort((a, b) => b.rewarded - a.rewarded || b.total - a.total).slice(0, 30);
     return { byStatus, inviters };
   }
+  async userClaims(userId) { return (await this.q(`SELECT type, ref, amount FROM reward_claims WHERE user_id=$1`, [userId])).rows.map((x) => ({ type: x.type, ref: x.ref, amount: Number(x.amount) })); }
+  async userClaims(userId) { return (this.d.claims || []).filter((c) => c.userId === userId).map((c) => ({ type: c.type, ref: c.ref, amount: c.amount })); }
   async rewardTotals() { const o = {}; for (const c of this.d.claims || []) { const t = (o[c.type] ||= { count: 0, amount: 0 }); t.count++; t.amount += c.amount; } return o; }
   async close() { this.save(); }
 }

@@ -11,7 +11,7 @@ import * as E from "./engine.js";
 import { openStore } from "./db.js";
 import * as Slot from "./slot.js";
 import { mountTables, DEFAULT_LIMITS, GAMES } from "./games/routes.js";
-import { vipOf, inviteTitle, DEFAULT_REWARDS, mask, VIP } from "./platform.js";
+import { vipOf, inviteTitle, DEFAULT_REWARDS, mask, VIP, tierInfo, tierAmount, cleanTiers, cleanMilestones } from "./platform.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const MAX_SEATS = 9;
@@ -41,6 +41,11 @@ export async function createApp(opts = {}) {
   // 每个游戏的最低/最高下注（分）、邀请奖励设置、公告：存在 settings 表里，后台可以改
   const limits = Object.fromEntries(Object.entries(DEFAULT_LIMITS).map(([g, d]) => [g, { ...d, ...((stored.gameLimits || {})[g] || {}) }]));
   const rewards = { invite: { ...DEFAULT_REWARDS.invite, ...((stored.rewards || {}).invite || {}) } };
+  // 一次性迁移：邀请人数改为不限（cap = 0），并换成阶梯奖励 + 里程碑。之后后台再改会照常保存
+  if (!stored.inviteTiersV1) {
+    rewards.invite.cap = 0; rewards.invite.tiers = DEFAULT_REWARDS.invite.tiers; rewards.invite.milestones = DEFAULT_REWARDS.invite.milestones;
+    await store.setSetting("rewards", rewards); await store.setSetting("inviteTiersV1", true);
+  }
   let announcements = Array.isArray(stored.announcements) ? stored.announcements : [];
   let house = await store.getUserByName(HOUSE);
   if (!house) house = await store.createUser(HOUSE, "!", 0, { isHouse: true });
@@ -642,17 +647,22 @@ export async function createApp(opts = {}) {
     res.json({ ok: true, settings });
   });
   // ---------- 平台：邀请好友 / 跑马灯 / 公告 ----------
-  // 被邀请人第一次完成任意一局游戏时，双方各得固定奖励；每位邀请人最多奖励 20 位。没有提成、没有多级。
+  // 被邀请人第一次完成任意一局游戏时：好友得固定奖励，邀请人按第几位成功邀请拿对应档位的固定奖励，
+  // 累计人数达到里程碑时再一次性发里程碑奖励。默认不限人数。没有提成、没有多级，和好友的余额、下注都无关。
   async function onPlayed(uid) {
     const r = await store.firstPlay(uid);
-    if (!r || !r.invitedBy || r.inviteStatus !== "pending" || !rewards.invite.enabled || !(rewards.invite.amount > 0)) return;
-    const st = await store.inviteReward(uid, rewards.invite.amount, rewards.invite.cap);
+    if (!r || !r.invitedBy || r.inviteStatus !== "pending" || !rewards.invite.enabled) return;
+    const st = await store.inviteReward(uid, rewards.invite);
     if (st === "rewarded") { pushMe(uid); pushMe(r.invitedBy); }
   }
   app.get("/api/me/invite", auth, async (req, res, next) => {
     try {
-      const list = await store.inviteList(req.user.id); const ok = list.filter((x) => x.status === "rewarded").length;
-      res.json({ code: req.user.publicId, rewarded: ok, total: list.length, ...rewards.invite, ...inviteTitle(ok),
+      const list = await store.inviteList(req.user.id), claims = await store.userClaims(req.user.id);
+      const ok = claims.filter((c) => c.type === "invite").length, earned = claims.filter((c) => c.type === "invite" || c.type === "milestone").reduce((a, c) => a + c.amount, 0);
+      const got = new Set(claims.filter((c) => c.type === "milestone").map((c) => c.ref)), iv = rewards.invite;
+      res.json({ code: req.user.publicId, rewarded: ok, total: list.length, earned, enabled: iv.enabled, amount: iv.amount, cap: iv.cap, tiers: iv.tiers,
+        nextReward: iv.cap > 0 && ok >= iv.cap ? 0 : tierAmount(ok + 1, iv.tiers), tier: tierInfo(ok, iv.tiers),
+        milestones: iv.milestones.map((m) => ({ ...m, done: got.has("m" + m.at) })), ...inviteTitle(ok),
         list: list.map((x) => ({ name: mask(x.username), status: x.status, at: x.at })) });
     } catch (e) { next(e); }
   });
@@ -676,7 +686,9 @@ export async function createApp(opts = {}) {
   apost("/rewards", async (req, res) => {
     const iv = req.body?.invite || {};
     if (iv.amount !== undefined) { const a = Math.trunc(Number(iv.amount)); if (!(a >= 0 && a <= 100000)) return res.status(400).json({ error: "奖励金额需在 0–1,000.00 之间" }); rewards.invite.amount = a; }
-    if (iv.cap !== undefined) { const c = Math.trunc(Number(iv.cap)); if (!(c >= 0 && c <= 100)) return res.status(400).json({ error: "上限需在 0–100 之间" }); rewards.invite.cap = c; }
+    if (iv.cap !== undefined) { const c = iv.cap === null || iv.cap === "" ? 0 : Math.trunc(Number(iv.cap)); if (!(c >= 0 && c <= 1000000)) return res.status(400).json({ error: "上限请填 0 或正整数（留空或 0 表示不限）" }); rewards.invite.cap = c; }
+    if (iv.tiers !== undefined) { const t = cleanTiers(iv.tiers); if (!t) return res.status(400).json({ error: "档位格式不正确：第一档必须从第 1 位开始，起始位数递增，每位奖励 0–1,000.00" }); rewards.invite.tiers = t; }
+    if (iv.milestones !== undefined) { const m = cleanMilestones(iv.milestones); if (!m) return res.status(400).json({ error: "里程碑格式不正确：人数为正整数且不重复，奖励 0–10,000.00" }); rewards.invite.milestones = m; }
     if (iv.enabled !== undefined) rewards.invite.enabled = !!iv.enabled;
     await store.setSetting("rewards", rewards); res.json({ ok: true, settings: rewards });
   });

@@ -633,6 +633,10 @@ html.land #tgRes2 .in{padding:8px 18px;width:100%}html.land #tgRes2 .t{font-size
 html:not(.land) #tg[data-g="baccarat"] .pc.t{width:44px;height:62px;font-size:19px}
 .pc.t.third{margin:0 9px}
 .seg.blinds button{font-size:13px;padding-left:2px;padding-right:2px;white-space:nowrap}
+.tiers{display:flex;flex-direction:column;gap:4px}.tiers>div{display:grid;grid-template-columns:1fr auto auto 38px;gap:6px;align-items:center;padding:6px 10px;border-radius:10px;background:#0003;border:1px solid #ffffff14}
+.tiers>div.on{border-color:#f5d77a;background:#f5d77a22;box-shadow:0 0 10px #f5d77a55}.tiers>div.past{opacity:.6}.tiers b{color:#ffe9a8;font-size:16px}.tiers i{font-style:normal;font-size:10px;background:#d4af37;color:#2a1600;border-radius:6px;padding:0 4px;text-align:center}
+.miles{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}.miles>div{background:#0003;border-radius:10px;padding:6px;text-align:center;border:1px solid #ffffff14;display:flex;flex-direction:column}
+.miles>div.done{border-color:#7dff9e88}.miles .ma{font-size:11px;color:#bfa9de}.miles b{color:#ffe9a8}.miles .mp{font-size:11px}
 </style>
 </head>
 <body>
@@ -993,10 +997,15 @@ window.openInvite = async () => {
   const link = location.origin + "/?inv=" + d.code, ST = { pending: "等待首局", rewarded: "已发放", blocked: "未通过检测", capped: "已达上限" };
   hModal("邀请好友", `<div class="invhead"><div class="muted">我的邀请码</div><div class="invcode">${esc(d.code)}</div><div class="invlink">${esc(link)}</div>
     <div class="row" style="justify-content:center;gap:8px;margin-top:8px"><button class="pri sm" id="invCopy">复制链接</button>${navigator.share ? `<button class="blue sm" id="invShare">分享</button>` : ""}</div></div>
-    <div class="invstat"><div><div class="k">成功邀请</div><div class="v">${d.rewarded} / ${d.cap}</div></div><div><div class="k">荣誉称号</div><div class="v">${d.title ? esc(d.title) : "—"}</div></div><div><div class="k">每人奖励</div><div class="v">${M(d.amount)}</div></div></div>
-    ${d.next ? `<div class="muted" style="text-align:center">再成功邀请 ${d.next.n - d.rewarded} 位可获得「${esc(d.next.title)}」称号</div>` : ""}
+    <div class="invstat"><div><div class="k">成功邀请</div><div class="v">${d.cap > 0 ? `${d.rewarded} / ${d.cap}` : d.rewarded}</div></div><div><div class="k">已获邀请奖励</div><div class="v">${M(d.earned)}</div></div><div><div class="k">下一位可得</div><div class="v">${M(d.nextReward)}</div></div></div>
     ${d.enabled ? "" : `<div class="nochips">邀请奖励活动暂未开启</div>`}
-    <h3>规则</h3><ul class="invrules"><li>好友通过你的链接注册，并完成第一局游戏后，你和好友<b>各得固定 ${M(d.amount)}</b> 游戏币</li><li>每人最多 ${d.cap} 位好友可获得奖励</li><li>同一网络 / 设备重复注册、邀请自己不计入</li><li>奖励只有这一次固定数额，与好友之后的下注和余额无关，没有任何提成</li><li>称号：1 位 紫晶新星 · 5 位 紫晶推广大使 · 10 位 金牌推广大使 · 20 位 皇家荣誉大使</li></ul>
+    <h3>阶梯奖励 · 邀请越多每位越多</h3>
+    <div class="tiers">${d.tiers.map((t, i) => { const to = d.tiers[i + 1] ? d.tiers[i + 1].from - 1 : null, on = d.tier.current && d.tier.current.from === t.from; return `<div class="${on ? "on" : ""} ${d.rewarded >= (to || Infinity) ? "past" : ""}"><span class="tr">第 ${t.from}${to ? `–${to}` : " 位起"}${to ? " 位" : ""}</span><b>${M(t.amount)}</b><span class="muted">/ 位</span>${on ? `<i>当前</i>` : ""}</div>`; }).join("")}</div>
+    ${d.tier.next ? `<div class="vbar"><i style="width:${Math.round(d.tier.progress * 100)}%"></i></div><div class="muted" style="text-align:center">再成功邀请 ${d.tier.next.need} 位，之后每位 ${M(d.tier.next.amount)}</div>` : `<div class="muted" style="text-align:center">已达到最高档：每位 ${M(d.tier.current ? d.tier.current.amount : 0)}</div>`}
+    ${d.milestones.length ? `<h3>里程碑奖励（每档只发一次）</h3><div class="miles">${d.milestones.map((m) => `<div class="${m.done ? "done" : ""}"><span class="ma">累计 ${m.at} 位</span><b>+${M(m.bonus)}</b><span class="mp">${m.done ? "✅ 已领取" : `${Math.min(d.rewarded, m.at)} / ${m.at}`}</span></div>`).join("")}</div>` : ""}
+    <div class="invstat" style="grid-template-columns:1fr 1fr"><div><div class="k">荣誉称号</div><div class="v">${d.title ? esc(d.title) : "—"}</div></div><div><div class="k">好友得到</div><div class="v">${M(d.amount)}</div></div></div>
+    ${d.next ? `<div class="muted" style="text-align:center">再成功邀请 ${d.next.n - d.rewarded} 位可获得「${esc(d.next.title)}」称号</div>` : ""}
+    <h3>规则</h3><ul class="invrules"><li>好友通过你的链接注册，并完成第一局游戏后，好友得到<b>固定 ${M(d.amount)}</b>，你按阶梯得到对应的<b>固定</b>奖励</li><li>${d.cap > 0 ? `每人最多 ${d.cap} 位好友可获得奖励` : "邀请人数不限，每成功邀请一位都有奖励"}</li><li>累计达到里程碑人数时，额外一次性发放里程碑奖励</li><li>同一网络 / 设备重复注册、邀请自己不计入；每位好友只奖励一次</li><li>所有奖励都是固定数额，与好友之后的下注和余额无关，没有任何提成</li><li>称号：${["紫晶新星", "紫晶推广大使", "金牌推广大使", "皇家荣誉大使"].map((t, i) => `${[1, 10, 50, 100][i]} 位 ${t}`).join(" · ")}</li></ul>
     <h3>我邀请的好友（${d.total}）</h3>${d.list.length ? d.list.map((x) => `<div class="hrow"><span>${esc(x.name)}</span><span class="muted">${new Date(x.at).toLocaleDateString("zh-CN")}</span><span class="st ${x.status}">${ST[x.status] || x.status}</span></div>`).join("") : `<div class="muted">还没有邀请记录</div>`}`);
   const cp = async () => { try { await navigator.clipboard.writeText(link); toast("已复制邀请链接"); } catch (e) { toast(link); } };
   $("invCopy").onclick = cp; if ($("invShare")) $("invShare").onclick = () => navigator.share({ title: "时烽游戏大厅", text: "来时烽游戏大厅一起玩（游戏币仅供娱乐）", url: link }).catch(() => {});

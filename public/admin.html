@@ -109,9 +109,11 @@ footer.safe{text-align:center;font-size:11px;color:#b9a6d6;opacity:.75;padding:1
 
     <div id="t-rw" class="hidden">
       <div class="box"><h2>邀请好友奖励</h2>
-        <div class="muted">好友注册并完成第一局后，邀请人和好友各得固定金额。没有提成、没有多级、与好友之后的下注和余额无关。</div>
+        <div class="muted">好友注册并完成第一局后，好友得固定金额，邀请人按第几位成功邀请拿对应档位的固定金额，达到里程碑再发一次性奖励。没有提成、没有多级、与好友之后的下注和余额无关。</div>
         <label class="row" style="gap:8px;margin-top:8px;flex-wrap:nowrap"><input type="checkbox" id="rwOn" style="width:auto;flex:none"> 开启邀请奖励</label>
-        <div class="row" style="flex-wrap:nowrap;gap:8px"><div style="flex:1"><label>每人奖励（游戏币）</label><input id="rwAmt" inputmode="decimal"></div><div style="flex:1"><label>每位邀请人上限（人）</label><input id="rwCap" type="number" inputmode="numeric"></div></div>
+        <div class="row" style="flex-wrap:nowrap;gap:8px"><div style="flex:1"><label>好友得到（固定，游戏币）</label><input id="rwAmt" inputmode="decimal"></div><div style="flex:1"><label>每位邀请人上限（人，留空或 0 = 不限）</label><input id="rwCap" type="number" inputmode="numeric" min="0" placeholder="不限"></div></div>
+        <h2 style="margin-top:12px">邀请人阶梯奖励（第 N 位起每位）</h2><div id="rwTiers"></div><button class="ghost sm" id="rwTierAdd">＋ 加一档</button>
+        <h2 style="margin-top:12px">里程碑一次性奖励</h2><div id="rwMiles"></div><button class="ghost sm" id="rwMileAdd">＋ 加里程碑</button>
         <button class="pri" id="rwSave" style="width:100%;margin-top:10px">保存</button></div>
       <div class="box"><h2>已发放（按奖励类型）</h2><div class="stats" id="rwTotals"></div></div>
       <div class="box"><h2>邀请状态</h2><div class="stats" id="rwStatus"></div><h2 style="margin-top:12px">邀请人统计（后台查看，不公开）</h2><div id="rwInviters"></div></div>
@@ -285,8 +287,9 @@ async function loadGmRecent() {
 // ---------- 邀请奖励 ----------
 async function loadRw() {
   try { const d = await call("GET", "/api/admin/rewards"); const s = d.settings.invite;
-    $("rwOn").checked = !!s.enabled; $("rwAmt").value = (s.amount / 100).toFixed(2); $("rwCap").value = s.cap;
-    const T = d.totals, TN = { invite: "邀请人奖励", invited: "被邀请人奖励" };
+    $("rwOn").checked = !!s.enabled; $("rwAmt").value = (s.amount / 100).toFixed(2); $("rwCap").value = s.cap > 0 ? s.cap : "";
+    TIERS = (s.tiers || []).map((t) => ({ ...t })); MILES = (s.milestones || []).map((m) => ({ ...m })); paintTiers();
+    const T = d.totals, TN = { invite: "邀请人阶梯奖励", milestone: "里程碑奖励", invited: "被邀请人奖励" };
     const all = Object.values(T).reduce((a, x) => a + x.amount, 0);
     $("rwTotals").innerHTML = [...Object.entries(TN).map(([k, n]) => [n, `${fmt((T[k] || {}).amount || 0)}（${num((T[k] || {}).count || 0)} 笔）`]), ["合计", fmt(all)]].map(([k, v]) => `<div><div class="k">${k}</div><div class="v">${v}</div></div>`).join("");
     const SN = { pending: "等待首局", rewarded: "已发放", blocked: "同 IP 拦截", capped: "超过上限" };
@@ -294,7 +297,14 @@ async function loadRw() {
     $("rwInviters").innerHTML = d.invites.inviters.length ? d.invites.inviters.map((x) => `<div class="mem"><span><span class="pid">ID ${x.publicId}</span> ${esc(x.username)}</span><span>邀请 ${x.total} · 成功 ${x.rewarded}</span></div>`).join("") : `<div class="muted">还没有邀请记录</div>`;
   } catch (e) { toast(e.message); }
 }
-$("rwSave").onclick = async () => { try { await call("POST", "/api/admin/rewards", { invite: { enabled: $("rwOn").checked, amount: toCents($("rwAmt").value), cap: +$("rwCap").value } }); toast("已保存"); loadRw(); } catch (e) { toast(e.message); } };
+let TIERS = [], MILES = [];
+function paintTiers() {
+  $("rwTiers").innerHTML = TIERS.map((t, i) => `<div class="row" style="flex-wrap:nowrap;gap:6px;margin:4px 0"><span style="flex:none">第</span><input value="${t.from}" ${i === 0 ? "disabled" : ""} type="number" min="1" oninput="TIERS[${i}].from=+this.value"><span style="flex:none">位起，每位</span><input value="${(t.amount / 100).toFixed(2)}" inputmode="decimal" oninput="TIERS[${i}].amount=toCents(this.value)">${i ? `<button class="red sm" style="flex:none" onclick="TIERS.splice(${i},1);paintTiers()">删</button>` : ""}</div>`).join("");
+  $("rwMiles").innerHTML = MILES.map((m, i) => `<div class="row" style="flex-wrap:nowrap;gap:6px;margin:4px 0"><span style="flex:none">累计</span><input value="${m.at}" type="number" min="1" oninput="MILES[${i}].at=+this.value"><span style="flex:none">位，奖励</span><input value="${(m.bonus / 100).toFixed(2)}" inputmode="decimal" oninput="MILES[${i}].bonus=toCents(this.value)"><button class="red sm" style="flex:none" onclick="MILES.splice(${i},1);paintTiers()">删</button></div>`).join("") || `<div class="muted">没有里程碑</div>`;
+}
+$("rwTierAdd").onclick = () => { const l = TIERS[TIERS.length - 1]; TIERS.push({ from: l ? l.from + 10 : 1, amount: l ? l.amount : 500 }); paintTiers(); };
+$("rwMileAdd").onclick = () => { const l = MILES[MILES.length - 1]; MILES.push({ at: l ? l.at * 2 : 10, bonus: l ? l.bonus : 2000 }); paintTiers(); };
+$("rwSave").onclick = async () => { try { await call("POST", "/api/admin/rewards", { invite: { enabled: $("rwOn").checked, amount: toCents($("rwAmt").value), cap: $("rwCap").value.trim() === "" ? 0 : +$("rwCap").value, tiers: TIERS, milestones: MILES } }); toast("已保存"); loadRw(); } catch (e) { toast(e.message); } };
 // ---------- 公告 ----------
 let AN = [];
 function paintAn() {
