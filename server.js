@@ -11,7 +11,7 @@ import * as E from "./engine.js";
 import { openStore } from "./db.js";
 import * as Slot from "./slot.js";
 import { mountTables, DEFAULT_LIMITS, GAMES } from "./games/routes.js";
-import { vipOf, inviteTitle, DEFAULT_REWARDS, mask } from "./platform.js";
+import { vipOf, inviteTitle, DEFAULT_REWARDS, mask, VIP } from "./platform.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const MAX_SEATS = 9;
@@ -665,6 +665,7 @@ export async function createApp(opts = {}) {
     } catch (e) { next(e); }
   });
   app.get("/api/announcements", (_req, res) => res.json(announcements));
+  app.get("/api/vip", (_req, res) => res.json(VIP));
   aget("/announcements", (_req, res) => res.json(announcements));
   apost("/announcements", async (req, res) => {
     const list = Array.isArray(req.body?.list) ? req.body.list : null; if (!list || list.length > 20) return res.status(400).json({ error: "公告格式不正确（最多 20 条）" });

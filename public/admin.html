@@ -75,7 +75,7 @@ footer.safe{text-align:center;font-size:11px;color:#b9a6d6;opacity:.75;padding:1
 
   <div id="main" class="hidden">
     <div class="row" style="justify-content:space-between;margin:10px 0"><span class="muted">管理员 <b id="who"></b></span><button class="ghost sm" id="btnOut">退出</button></div>
-    <div class="tabs" id="tabs"><button data-t="ov" class="on">概览</button><button data-t="users">玩家</button><button data-t="rooms">房间</button><button data-t="mj">麻将</button><button data-t="set">设置</button></div>
+    <div class="tabs" id="tabs"><button data-t="ov" class="on">概览</button><button data-t="users">玩家</button><button data-t="rooms">房间</button><button data-t="mj">麻将</button><button data-t="gm">游戏</button><button data-t="rw">邀请</button><button data-t="an">公告</button><button data-t="set">设置</button></div>
 
     <div id="t-ov">
       <div class="box"><div class="stats" id="stats"></div><div id="storeWarn"></div></div>
@@ -98,6 +98,29 @@ footer.safe{text-align:center;font-size:11px;color:#b9a6d6;opacity:.75;padding:1
         <div class="muted" style="margin-top:8px">庄家盈亏 = 玩家下注 − 派彩，已计入庄家余额。设计返还率约 96%，局数越多实际返还率越接近。</div></div>
       <div class="box"><h2>下注最多的玩家</h2><div id="mjTop"></div></div>
       <div class="box"><h2>最近 30 局</h2><div id="mjRecent" class="ledger" style="max-height:none"></div></div>
+    </div>
+
+    <div id="t-gm" class="hidden">
+      <div class="box"><div class="row" style="justify-content:space-between"><h2 style="margin:0">各游戏汇总 · 限额</h2><button class="ghost sm" onclick="loadGames()">刷新</button></div>
+        <div class="muted" style="margin:6px 0">庄家盈亏 = 玩家下注 − 返还。实际返还率（RTP）= 返还 ÷ 下注，局数越多越接近理论值。限额单位为游戏币（如 0.10、500）。</div>
+        <div id="gmList"></div></div>
+      <div class="box"><div class="row" style="justify-content:space-between"><h2 style="margin:0">最近 30 局</h2><select id="gmSel" style="flex:none;width:auto"></select></div><div id="gmRecent" class="ledger" style="max-height:none"></div></div>
+    </div>
+
+    <div id="t-rw" class="hidden">
+      <div class="box"><h2>邀请好友奖励</h2>
+        <div class="muted">好友注册并完成第一局后，邀请人和好友各得固定金额。没有提成、没有多级、与好友之后的下注和余额无关。</div>
+        <label class="row" style="gap:8px;margin-top:8px;flex-wrap:nowrap"><input type="checkbox" id="rwOn" style="width:auto;flex:none"> 开启邀请奖励</label>
+        <div class="row" style="flex-wrap:nowrap;gap:8px"><div style="flex:1"><label>每人奖励（游戏币）</label><input id="rwAmt" inputmode="decimal"></div><div style="flex:1"><label>每位邀请人上限（人）</label><input id="rwCap" type="number" inputmode="numeric"></div></div>
+        <button class="pri" id="rwSave" style="width:100%;margin-top:10px">保存</button></div>
+      <div class="box"><h2>已发放（按奖励类型）</h2><div class="stats" id="rwTotals"></div></div>
+      <div class="box"><h2>邀请状态</h2><div class="stats" id="rwStatus"></div><h2 style="margin-top:12px">邀请人统计（后台查看，不公开）</h2><div id="rwInviters"></div></div>
+    </div>
+
+    <div id="t-an" class="hidden">
+      <div class="box"><div class="row" style="justify-content:space-between"><h2 style="margin:0">大厅公告</h2><button class="ghost sm" id="anAdd">＋ 新增</button></div>
+        <div class="muted" style="margin:6px 0">最多 20 条；标题 ≤ 40 字，内容 ≤ 500 字。置顶的排在最前。</div>
+        <div id="anList"></div><button class="pri" id="anSave" style="width:100%;margin-top:10px">保存公告</button></div>
     </div>
 
     <div id="t-set" class="hidden">
@@ -144,8 +167,8 @@ $("tabs").querySelectorAll("button").forEach((b) => b.onclick = () => setTab(b.d
 function setTab(t) {
   tab = t;
   $("tabs").querySelectorAll("button").forEach((x) => x.classList.toggle("on", x.dataset.t === t));
-  for (const x of ["ov", "users", "rooms", "mj", "set"]) $("t-" + x).classList.toggle("hidden", x !== t);
-  if (t === "ov") loadStats(); if (t === "users") loadUsers(); if (t === "rooms") loadRooms(); if (t === "mj") loadMj(); if (t === "set") loadStats();
+  for (const x of ["ov", "users", "rooms", "mj", "gm", "rw", "an", "set"]) $("t-" + x).classList.toggle("hidden", x !== t);
+  if (t === "ov") loadStats(); if (t === "users") loadUsers(); if (t === "rooms") loadRooms(); if (t === "mj") loadMj(); if (t === "set") loadStats(); if (t === "gm") loadGames(); if (t === "rw") loadRw(); if (t === "an") loadAn();
 }
 async function start(name) {
   $("loginBox").classList.add("hidden"); $("main").classList.remove("hidden");
@@ -177,10 +200,10 @@ async function loadUsers() {
 }
 $("btnQ").onclick = loadUsers; $("q").onkeydown = (e) => { if (e.key === "Enter") loadUsers(); };
 function extra(id) { return document.querySelector(`#u${id} .extra`); }
-const PRESETS = [100000, 500000, 1000000, 5000000, 10000000]; // 分：1,000.00 … 100,000.00
+const PRESETS = [1000, 5000, 10000, 50000, 100000]; // 分：10 / 50 / 100 / 500 / 1000（下面还可以填自定义金额）
 function openGift(id) {
   extra(id).innerHTML = `<div class="box gift" style="margin:8px 0 0;padding:10px">
-    <div class="row presets">${PRESETS.map((n) => `<button class="sm ghost" onclick="setGift(${id}, ${n})">${n >= 1000000 ? n / 1000000 + " 万" : num(n / 100)}</button>`).join("")}</div>
+    <div class="row presets">${PRESETS.map((n) => `<button class="sm ghost" onclick="setGift(${id}, ${n})">${num(n / 100)}</button>`).join("")}</div>
     <label>赠送数量</label><input id="ga${id}" inputmode="decimal" placeholder="可以带小数，如 12.50" oninput="giftLabel(${id})">
     <label>备注（可不填，默认“管理员赠送”）</label><input id="gr${id}" maxlength="100" placeholder="管理员赠送">
     <div class="row" style="margin-top:8px"><button class="pri" style="flex:1" id="gb${id}" onclick="gift(${id})">确认赠送</button><button class="ghost sm" onclick="extra(${id}).innerHTML=''">取消</button></div></div>`;
@@ -240,6 +263,48 @@ async function loadRooms() {
 async function closeRoom(code) { if (!confirm(`关闭房间 ${code}？桌上所有筹码会返还到各自余额（进行中的这手作废）。`)) return; try { await call("POST", `/api/admin/rooms/${code}/close`); toast("房间已关闭"); loadRooms(); } catch (e) { toast(e.message); } }
 async function kick(code, userId, name) { if (!confirm(`把 ${name} 移出房间 ${code}？他的筹码会返还到余额。`)) return; try { await call("POST", `/api/admin/rooms/${code}/kick`, { userId }); toast("已移出"); loadRooms(); } catch (e) { toast(e.message); } }
 
+
+// ---------- 游戏：汇总、实际返还率、限额 ----------
+const GN = { baccarat: "百家乐", blackjack: "21点", sicbo: "骰宝", niuniu: "牛牛", zjh: "炸金花", mahjong: "时烽麻将消消乐" };
+async function loadGames() {
+  try {
+    const d = await call("GET", "/api/admin/games");
+    $("gmList").innerHTML = Object.entries(d).map(([g, x]) => `<div class="room"><div class="row" style="justify-content:space-between"><b>${esc(x.name || GN[g])}</b><span class="muted">${num(x.spins)} 局 · ${num(x.players)} 人</span></div>
+      <div class="stats" style="margin-top:6px">${[["下注", fmt(x.bets)], ["返还", fmt(x.wins)], ["庄家盈亏", fmt(x.profit)], ["实际 RTP", x.rtp == null ? "—" : (x.rtp * 100).toFixed(2) + "%"]].map(([k, v]) => `<div><div class="k">${k}</div><div class="v">${v}</div></div>`).join("")}</div>
+      <div class="row" style="flex-wrap:nowrap;gap:6px;margin-top:6px"><span class="muted" style="flex:none">限额</span><input id="mn_${g}" value="${(x.limits.min / 100).toFixed(2)}" inputmode="decimal"><span style="flex:none">–</span><input id="mx_${g}" value="${(x.limits.max / 100).toFixed(2)}" inputmode="decimal"><button class="sm" style="flex:none" onclick="saveLim('${g}')">保存</button></div></div>`).join("");
+    if (!$("gmSel").options.length) { $("gmSel").innerHTML = Object.keys(d).map((g) => `<option value="${g}">${esc(GN[g] || g)}</option>`).join(""); $("gmSel").onchange = loadGmRecent; }
+    loadGmRecent();
+  } catch (e) { toast(e.message); }
+}
+async function saveLim(g) { try { await call("POST", "/api/admin/games/limits", { game: g, min: toCents($("mn_" + g).value), max: toCents($("mx_" + g).value) }); toast(`${GN[g]} 限额已保存`); loadGames(); } catch (e) { toast(e.message); } }
+async function loadGmRecent() {
+  try { const l = await call("GET", `/api/admin/games/${$("gmSel").value}/recent`);
+    $("gmRecent").innerHTML = l.length ? l.map((x) => `<div class="mem"><span>${t2(x.at)} · ${esc(x.username)}</span><span>下注 ${fmt(x.bet)} · 返还 <span class="money">${fmt(x.win)}</span></span></div>`).join("") : `<div class="muted">还没有记录</div>`;
+  } catch (e) {}
+}
+// ---------- 邀请奖励 ----------
+async function loadRw() {
+  try { const d = await call("GET", "/api/admin/rewards"); const s = d.settings.invite;
+    $("rwOn").checked = !!s.enabled; $("rwAmt").value = (s.amount / 100).toFixed(2); $("rwCap").value = s.cap;
+    const T = d.totals, TN = { invite: "邀请人奖励", invited: "被邀请人奖励" };
+    const all = Object.values(T).reduce((a, x) => a + x.amount, 0);
+    $("rwTotals").innerHTML = [...Object.entries(TN).map(([k, n]) => [n, `${fmt((T[k] || {}).amount || 0)}（${num((T[k] || {}).count || 0)} 笔）`]), ["合计", fmt(all)]].map(([k, v]) => `<div><div class="k">${k}</div><div class="v">${v}</div></div>`).join("");
+    const SN = { pending: "等待首局", rewarded: "已发放", blocked: "同 IP 拦截", capped: "超过上限" };
+    $("rwStatus").innerHTML = Object.entries(SN).map(([k, n]) => `<div><div class="k">${n}</div><div class="v">${num(d.invites.byStatus[k] || 0)}</div></div>`).join("");
+    $("rwInviters").innerHTML = d.invites.inviters.length ? d.invites.inviters.map((x) => `<div class="mem"><span><span class="pid">ID ${x.publicId}</span> ${esc(x.username)}</span><span>邀请 ${x.total} · 成功 ${x.rewarded}</span></div>`).join("") : `<div class="muted">还没有邀请记录</div>`;
+  } catch (e) { toast(e.message); }
+}
+$("rwSave").onclick = async () => { try { await call("POST", "/api/admin/rewards", { invite: { enabled: $("rwOn").checked, amount: toCents($("rwAmt").value), cap: +$("rwCap").value } }); toast("已保存"); loadRw(); } catch (e) { toast(e.message); } };
+// ---------- 公告 ----------
+let AN = [];
+function paintAn() {
+  $("anList").innerHTML = AN.map((a, i) => `<div class="room"><input placeholder="标题" maxlength="40" value="${esc(a.title)}" oninput="AN[${i}].title=this.value">
+    <textarea placeholder="内容" maxlength="500" rows="3" style="width:100%;margin-top:6px;background:#0004;color:#fff;border:1px solid #d4af3766;border-radius:8px;padding:6px" oninput="AN[${i}].body=this.value">${esc(a.body)}</textarea>
+    <div class="row" style="justify-content:space-between"><label class="row" style="gap:6px;flex-wrap:nowrap;flex:none"><input type="checkbox" style="width:auto" ${a.pinned ? "checked" : ""} onchange="AN[${i}].pinned=this.checked"> 置顶</label><button class="red sm" style="flex:none" onclick="AN.splice(${i},1);paintAn()">删除</button></div></div>`).join("") || `<div class="muted">暂无公告</div>`;
+}
+async function loadAn() { try { AN = await call("GET", "/api/admin/announcements"); paintAn(); } catch (e) { toast(e.message); } }
+$("anAdd").onclick = () => { if (AN.length >= 20) return toast("最多 20 条"); AN.unshift({ title: "", body: "", pinned: false, at: Date.now() }); paintAn(); };
+$("anSave").onclick = async () => { try { const d = await call("POST", "/api/admin/announcements", { list: AN }); AN = d.list; paintAn(); toast("公告已保存"); } catch (e) { toast(e.message); } };
 $("btnSave").onclick = async () => {
   try {
     const d = await call("POST", "/api/admin/settings", { rakePercent: +$("sRake").value });

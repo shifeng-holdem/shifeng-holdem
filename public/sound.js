@@ -82,6 +82,7 @@
     hall: { bpm: 72, root: 62, ...compose(20261115, 62, 8, 0), bass: [50, 47, 43, 45] },           // D 宫：大气
     poker: { bpm: 64, root: 57, ...compose(3141592, 57, 8, 1), bass: [45, 43, 40, 38] },          // A 羽：沉静
     mj: { bpm: 84, root: 60, ...compose(8888, 60, 8, 2), bass: [48, 45, 43, 50] },                // C 徵：轻快
+    tg: { bpm: 76, root: 55, ...compose(51888, 55, 8, 3), bass: [43, 40, 38, 45] },               // G 商：牌桌
   };
   function tick() {
     if (!ctx || !song) return;
@@ -119,6 +120,9 @@
     pop() { if (!ok()) return; noise(sfxBus, now(), 0.12, { freq: 4200, q: 2, vol: 0.12 }); },
     mjWin() { if (!ok()) return; const t = now(); [0, 4, 7].forEach((p, k) => pluck(sfxBus, 76 + p, t + k * 0.07, 1, 0.3)); },
     bigWin() { if (!ok()) return; const t = now(); [0, 2, 4, 7, 9, 12, 14, 16, 19].forEach((p, k) => pluck(sfxBus, 67 + p, t + k * 0.09, 1.4, 0.32)); [0, 4, 7].forEach((p) => flute(sfxBus, 79 + p, t + 0.9, 1.4, 0.07)); },
+    dice() { if (!ok()) return; const t = now(); for (let k = 0; k < 7; k++) { noise(sfxBus, t + k * 0.07 + Math.random() * 0.03, 0.05, { freq: 2200 + Math.random() * 1800, q: 3, vol: 0.22 }); tone(sfxBus, 500 + Math.random() * 400, t + k * 0.07, 0.04, { type: "triangle", vol: 0.06 }); } },
+    flip() { if (!ok()) return; const t = now(); noise(sfxBus, t, 0.06, { freq: 5000, q: 1.2, vol: 0.25, sweep: 2500 }); tone(sfxBus, 900, t + 0.03, 0.05, { type: "triangle", vol: 0.08 }); },
+    lose() { if (!ok()) return; const t = now(); tone(sfxBus, 392, t, 0.25, { type: "triangle", vol: 0.12, to: 330 }); tone(sfxBus, 330, t + 0.22, 0.35, { type: "triangle", vol: 0.1, to: 262 }); },
     freeSpins() { if (!ok()) return; const t = now(); for (let k = 0; k < 3; k++) { tone(sfxBus, 520, t + k * 0.18, 0.5, { type: "triangle", vol: 0.12 }); } [0, 4, 7, 12, 16, 19, 24].forEach((p, k) => pluck(sfxBus, 64 + p, t + 0.5 + k * 0.07, 1.4, 0.3)); noise(sfxBus, t + 0.5, 1.2, { freq: 6000, q: 3, vol: 0.1, sweep: 9000 }); },
   };
 
@@ -128,9 +132,12 @@
     pk_deal: "发牌", pk_flop: "翻牌", pk_turncard: "转牌", pk_river: "河牌", pk_youwin: "你赢了", pk_showdown: "摊牌",
     mj_start: "开始", mj_hu: "胡了", mj_combo: "连消", mj_c2: "二连消", mj_c3: "三连消", mj_c4: "四连消", mj_c5: "五连消", mj_c6: "六连消", mj_c10: "十连消",
     mj_free: "免费游戏", mj_big: "大奖", mj_super: "超级大奖", mj_nochips: "余额不足",
+    tg_bet: "请下注", tg_win: "恭喜你赢了", tg_lose: "再接再厉", tg_push: "平局", bc_player: "闲赢", bc_banker: "庄赢", bc_tie: "和局", bc_pair: "对子",
+    bj_blackjack: "黑杰克", bj_bust: "爆牌了", bj_insurance: "需要买保险吗", sb_big: "大", sb_small: "小", sb_triple: "围骰",
+    nn_niuniu: "牛牛", nn_special: "特殊牌型，大赢", zj_look: "看牌", zj_call: "跟", zj_fold: "弃牌", zj_baozi: "豹子",
   };
   // 优先级：高的可以打断低的；同时最多排队 1 句，排队超过 1.5 秒就丢掉，避免越积越多
-  const PRIO = { hall_welcome: 3, pk_turn: 4, pk_youwin: 5, pk_showdown: 3, mj_free: 5, mj_big: 5, mj_super: 6, mj_nochips: 4, mj_hu: 2, mj_start: 1 };
+  const PRIO = { tg_win: 4, bj_blackjack: 5, zj_baozi: 5, nn_special: 5, nn_niuniu: 4, sb_triple: 4, hall_welcome: 3, pk_turn: 4, pk_youwin: 5, pk_showdown: 3, mj_free: 5, mj_big: 5, mj_super: 6, mj_nochips: 4, mj_hu: 2, mj_start: 1 };
   const prio = (id) => PRIO[id] || 2;
   const bufs = new Map(); let cur = null, queued = null, pendingWelcome = false;
   function loadVoice(id) {
@@ -139,7 +146,7 @@
       .then((ab) => new Promise((res, rej) => ctx.decodeAudioData(ab, res, rej))).catch(() => null));
     return bufs.get(id);
   }
-  function preload(area) { if (!ctx) return; Object.keys(LINES).filter((k) => (area === "mj" ? k.startsWith("mj_") : area === "poker" ? k.startsWith("pk_") : k.startsWith("hall_"))).forEach(loadVoice); }
+  function preload(area) { if (!ctx) return; Object.keys(LINES).filter((k) => (area === "mj" ? k.startsWith("mj_") : area === "poker" ? k.startsWith("pk_") : area === "tg" ? /^(tg|bc|bj|sb|nn|zj)_/.test(k) : k.startsWith("hall_"))).forEach(loadVoice); }
   function duck(on) { if (ctx) musicBus.gain.setTargetAtTime(st.music ? VOL.music * (on ? VOL.duck : 1) : 0, ctx.currentTime, on ? 0.05 : 0.25); }
   function speakFallback(id) { // 音频文件加载失败时才用浏览器朗读
     try { const sy = window.speechSynthesis; if (!sy) return; sy.cancel(); const u = new SpeechSynthesisUtterance(LINES[id]); u.lang = "zh-CN"; u.rate = 1.1; u.volume = 0.9; sy.speak(u); } catch (e) {}

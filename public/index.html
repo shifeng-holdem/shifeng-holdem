@@ -422,6 +422,217 @@ html.land .mjsheet{max-height:92dvh;max-width:640px}
   *,*:before,*:after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
   .gtile{transform:none!important}
 }
+/* ================= 牌桌游戏（百家乐 / 21点 / 骰宝 / 牛牛 / 炸金花） ================= */
+#tg{position:fixed;inset:0;height:100vh;height:100dvh;overflow-x:hidden;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;padding:max(6px,env(safe-area-inset-top)) max(10px,env(safe-area-inset-right)) max(8px,env(safe-area-inset-bottom)) max(10px,env(safe-area-inset-left))}
+#tg>*{max-width:560px;margin-left:auto;margin-right:auto}
+.tgtop{display:flex;align-items:center;gap:6px;flex-wrap:nowrap}
+.tgtop h1{flex:1;margin:0;font-size:22px;text-align:center;white-space:nowrap}
+.tgtop .sm{flex:none;padding:5px 10px;font-size:12px}
+.tgwho{display:none;font-size:11px;color:#d8c6f2;white-space:nowrap}
+#tg .tagline{text-align:center;margin:2px auto 6px}
+.tgfelt{perspective:1100px;margin-top:2px}
+.tgtable{position:relative;border-radius:26px;padding:12px 10px 14px;transform:rotateX(14deg);transform-origin:50% 100%;
+  background:radial-gradient(120% 90% at 50% 20%,#3f8a62 0%,#1f5c3f 55%,#123a28 100%);
+  border:6px solid transparent;background-clip:padding-box;box-shadow:0 0 0 3px #f5d77a,0 0 0 7px #4a1d78,0 0 0 9px #d4af37,0 18px 30px #000c,inset 0 0 40px #0009}
+#tg[data-g="baccarat"] .tgtable{background:radial-gradient(120% 90% at 50% 20%,#6a2fa6 0%,#3d1870 55%,#230c42 100%)}
+#tg[data-g="sicbo"] .tgtable{background:radial-gradient(120% 90% at 50% 20%,#a8323e 0%,#6c1626 55%,#3b0b18 100%)}
+#tg[data-g="zjh"] .tgtable{background:radial-gradient(120% 90% at 50% 20%,#2d5aa8 0%,#183a78 55%,#0d2048 100%)}
+.tgtable .hl{font-size:13px;color:#f8e7b0;font-weight:700;margin-bottom:4px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;justify-content:center}
+.tgtable .pt{display:inline-block;min-width:24px;padding:1px 8px;border-radius:999px;background:linear-gradient(180deg,#fff0b0,#d4af37);color:#2a1600;font-size:15px;text-align:center;box-shadow:0 2px 0 #7a5a10}
+.tgtable .pt:empty{display:none}
+.tgtable .cards{display:flex;gap:5px;justify-content:center;min-height:64px;align-items:center;flex-wrap:wrap}
+.pc.t{width:44px;height:62px;font-size:19px;border-radius:6px}.pc.t .s{font-size:22px}
+.pc.t.gap{margin-left:12px}.pc.t.third{transform:rotate(90deg);margin:0 10px}
+.hand2{margin:4px 0 8px;text-align:center}
+.nt b{color:#ffe9a8;font-size:15px;text-shadow:0 0 8px #f5d77a}.nt{color:#f8e7b0}
+.spots{display:flex;flex-direction:column;gap:6px;margin-top:8px}
+.srow{display:flex;gap:6px}
+.spot{flex:1;position:relative;border-radius:12px;padding:7px 4px 6px;text-align:center;cursor:pointer;min-height:54px;
+  background:linear-gradient(180deg,#ffffff1f,#00000026);border:1.5px solid #f5d77acc;box-shadow:inset 0 1px 0 #fff4,0 3px 0 #0006;transition:filter .15s}
+.spot:active{filter:brightness(1.25)}
+.spot .sn{font-size:20px;font-weight:900;color:#fff4d0;text-shadow:0 2px 0 #0008;line-height:1.1;display:flex;justify-content:center}
+.spot .sp{font-size:10px;color:#f5d77a;opacity:.9}
+.spot .sb{min-height:16px;display:flex;align-items:center;justify-content:center;gap:4px;font-size:11px;color:#fff}
+.spot .sb b{background:#0009;border-radius:999px;padding:0 6px}
+.spot.big .sn{font-size:28px}.spot.big{min-height:76px}
+.spot.sm .sn{font-size:17px}
+.spot.red{background:linear-gradient(180deg,#d83a4a55,#5a0a1a66)}.spot.blue{background:linear-gradient(180deg,#3a6ad855,#0a1a5a66)}.spot.green{background:linear-gradient(180deg,#3ad87055,#0a5a2a66)}.spot.gold{background:linear-gradient(180deg,#f5d77a44,#7a5a1066)}
+.spot.has{box-shadow:inset 0 0 0 2px #f5d77a,0 0 14px #f5d77a88,0 3px 0 #0006}
+.spot.win{animation:spw .5s ease-in-out infinite alternate;border-color:#fff}
+@keyframes spw{to{box-shadow:inset 0 0 18px #fff6,0 0 22px #f5d77a,0 3px 0 #0006;filter:brightness(1.35)}}
+.spot.xs{min-height:44px;padding:4px 2px}.spot.xs .sn{font-size:15px}.spot.xs .sp{font-size:9px}
+.spots.one .spot{max-width:220px;margin:0 auto;width:100%}
+.stk{position:relative;display:inline-block;width:20px;height:20px}
+.stk .chip{position:absolute;left:0;bottom:calc(var(--k)*3px);width:20px;height:20px;border-width:2px}
+.sgrid{display:grid;gap:4px}.sgrid.s7{grid-template-columns:repeat(7,1fr)}.sgrid.s6{grid-template-columns:repeat(6,1fr)}
+/* 筹码 */
+.chip{flex:none;width:44px;height:44px;border-radius:50%;border:3px dashed #fff;position:relative;cursor:pointer;color:#fff;font-weight:900;font-size:13px;display:inline-flex;align-items:center;justify-content:center;padding:0;
+  box-shadow:0 0 0 2px #0004,0 3px 0 #0008,inset 0 2px 4px #fff6,inset 0 -3px 6px #0006;background:radial-gradient(circle at 50% 35%,var(--c1),var(--c2))}
+.chip span{background:#0003;border-radius:50%;width:66%;height:66%;display:flex;align-items:center;justify-content:center;text-shadow:0 1px 0 #000}
+.chip.on{transform:translateY(-6px);box-shadow:0 0 0 3px #f5d77a,0 0 16px #f5d77a,0 6px 0 #0008}
+.chip.c10{--c1:#e9e3f0;--c2:#9a90a8;color:#2a1050}.chip.c10 span{text-shadow:none}
+.chip.c50{--c1:#5cd88a;--c2:#127a3e}.chip.c100{--c1:#5ca0f0;--c2:#1a4aa8}.chip.c500{--c1:#c07cf5;--c2:#5b1a9a}
+.chip.c1000{--c1:#ff6a6a;--c2:#a8102a}.chip.c5000{--c1:#ffe9a8;--c2:#b8862a;color:#3a2000}.chip.c10000{--c1:#555;--c2:#111;border-color:#f5d77a}
+.tgside{margin-top:12px}
+.tgbal{display:flex;align-items:center;justify-content:center;gap:8px;font-size:15px;color:#ead9a4}.tgbal b{color:#ffe9a8;font-size:19px}
+.tgbal .sm{padding:3px 8px;font-size:11px}
+.tgchips{display:flex;gap:6px;justify-content:center;padding:10px 0 4px;flex-wrap:nowrap;overflow-x:auto}
+.tgact{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:6px}
+.tgact button{flex:1;min-width:70px;padding:10px 8px;font-size:15px}.tgact button.big{flex:2}
+.tgact button.red{background:linear-gradient(180deg,#ff6a6a,#b01c30);color:#fff}
+.tgtot{width:100%;text-align:center;font-size:11px;color:#bfa9de}
+.tgres{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;z-index:5}
+.tgres .in{background:linear-gradient(180deg,#2a1050ee,#14062aee);border:2px solid #f5d77a;border-radius:18px;padding:12px 26px;text-align:center;box-shadow:0 0 30px #f5d77a66,0 10px 30px #000c}
+.tgres .t{font-size:26px;font-weight:900;background:linear-gradient(180deg,#fff7d0,#f5d77a 45%,#b8862a 55%,#ffe9a8);-webkit-background-clip:text;background-clip:text;color:transparent;filter:drop-shadow(0 2px 0 #5a3a00)}
+.tgres .t small{font-size:16px}
+.tgres .n{font-size:22px;font-weight:800}.tgres .s{font-size:11px;color:#bfa9de}
+.tgres.good .in{box-shadow:0 0 40px #f5d77acc,0 10px 30px #000c}
+.up{color:#7dff9e}.dn{color:#ff8a8a}
+/* 百家乐 */
+.road{display:flex;flex-wrap:wrap;gap:2px;min-height:18px;justify-content:center;margin-bottom:4px;max-height:40px;overflow:hidden}
+.road i{font-style:normal;width:16px;height:16px;border-radius:50%;font-size:10px;font-weight:800;display:inline-flex;align-items:center;justify-content:center;color:#fff}
+.road i.player{background:#2f6ad8}.road i.banker{background:#d8303f}.road i.tie{background:#22a05a}
+.bchands{display:flex;gap:8px}.bch{flex:1;text-align:center;border-radius:12px;padding:6px 2px;background:#0002}
+.bch.p .hl{color:#9cc2ff}.bch.b .hl{color:#ffa0a8}
+/* 21点 */
+.bjhands{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;min-height:84px}
+.bjh{border-radius:12px;padding:4px 6px;background:#0002;border:1.5px solid transparent}
+.bjh.on{border-color:#f5d77a;box-shadow:0 0 12px #f5d77a88}
+.bjh .rs{font-weight:900;color:#ffe9a8}.bjh.lose,.bjh.bust{opacity:.7}
+/* 骰宝 */
+.dicebox{text-align:center;margin-bottom:6px}
+.bowl{display:flex;gap:18px;justify-content:center;padding:12px 0 10px;perspective:500px;border-radius:50%;background:radial-gradient(closest-side,#ffffff22,transparent);margin:0 auto;width:220px}
+.die{width:40px;height:40px;position:relative;transform-style:preserve-3d;transition:transform .7s cubic-bezier(.2,1.3,.4,1)}
+.die.rolling{animation:droll .5s linear infinite}
+@keyframes droll{from{transform:rotateX(0) rotateY(0) rotateZ(0)}to{transform:rotateX(360deg) rotateY(720deg) rotateZ(360deg)}}
+.die .f{position:absolute;inset:0;border-radius:8px;background:radial-gradient(circle at 35% 30%,#fff,#e6e0d6);box-shadow:inset 0 0 6px #0004;display:grid;grid-template-columns:repeat(3,1fr);padding:5px;gap:1px}
+.die .f1{transform:translateZ(20px)}.die .f6{transform:rotateY(180deg) translateZ(20px)}.die .f3{transform:rotateY(90deg) translateZ(20px)}.die .f4{transform:rotateY(-90deg) translateZ(20px)}.die .f2{transform:rotateX(90deg) translateZ(20px)}.die .f5{transform:rotateX(-90deg) translateZ(20px)}
+.f i,.pdie i{border-radius:50%}.f i.on{background:radial-gradient(circle at 40% 35%,#555,#000)}.f i.on.r{background:radial-gradient(circle at 40% 35%,#ff6a6a,#a8102a)}
+.dsum{font-size:14px;color:#f8e7b0}.dsum b{font-size:22px;color:#ffe9a8}
+.pdie{display:inline-grid;grid-template-columns:repeat(3,1fr);width:20px;height:20px;padding:2px;gap:1px;background:#fff;border-radius:4px;box-shadow:0 1px 0 #0008}
+.pdie i.on{background:#111}.pdie i.on.r{background:#d0202a}
+.mini3{display:inline-flex;gap:1px}.mini3 .pdie{width:14px;height:14px;padding:1px}
+.spot .sn .pdie{width:24px;height:24px}
+/* 记录 / 规则 */
+.hrow{display:grid;grid-template-columns:auto 1fr auto auto;gap:8px;padding:6px 0;border-bottom:1px solid #ffffff14;font-size:12px;align-items:center}
+.hrow .st.rewarded{color:#7dff9e}.hrow .st.blocked,.hrow .st.capped{color:#ff8a8a}
+.ptab{width:100%;border-collapse:collapse;margin:6px 0}.ptab td{border-bottom:1px solid #ffffff1a;padding:4px 6px}
+.ptab tr:first-child td{color:#f5d77a;font-weight:700}
+/* 横屏：牌桌在左，操作面板在右 */
+html.land #tg{display:grid;grid-template-columns:minmax(0,1fr) minmax(220px,300px);grid-template-rows:auto auto minmax(0,1fr) auto;column-gap:14px;overflow-y:auto}
+html.land #tg>*{max-width:none;margin:0}
+html.land .tgtop{grid-column:1/3}html.land .tgwho{display:block}
+html.land #tg .tagline{grid-column:1/3;margin:0 0 2px}
+html.land .tgfelt{grid-column:1;grid-row:3;align-self:start}
+html.land .tgside{grid-column:2;grid-row:3;margin:0;align-self:start;display:flex;flex-direction:column;gap:6px}
+html.land #tg footer.safe{grid-column:1/3;margin:6px 0 0}
+html.land .tgchips{flex-wrap:wrap}
+html.land .tgtable{transform:rotateX(8deg);padding:8px 10px 10px}
+html.land .pc.t{width:36px;height:52px;font-size:16px}html.land .pc.t .s{font-size:18px}
+html.land .tgtable .cards{min-height:54px}
+html.land .spot.big{min-height:56px}html.land .spot.big .sn{font-size:22px}
+html.land .spot.xs{min-height:36px}
+@media (prefers-reduced-motion: reduce){.die,.die.rolling{animation:none;transition:none}.spot.win{animation:none;filter:brightness(1.3)}}
+/* ================= 大厅 v2：牌桌游戏图标、跑马灯、公告、VIP、邀请 ================= */
+.gsec{font-size:14px;color:#f5d77a;letter-spacing:4px;margin:16px 0 6px;text-align:center;font-family:"Kaiti SC","STKaiti","KaiTi",serif}
+.games.tg2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.games.tg2 .gtile{flex-direction:column;text-align:center;gap:6px;padding:12px 8px}
+.games.tg2 .gdesc{font-size:11px}.games.tg2 .gmeta{font-size:10px}.games.tg2 .gname{font-size:16px}
+.games.tg2 .gbtn{padding:5px 18px;font-size:13px}
+html.land .games.tg2{grid-template-columns:repeat(3,1fr)}
+.gart.baccarat{background:radial-gradient(circle at 50% 40%,#9a4ad8,#4a1d78 70%,#2a0b4e)}
+.gart.baccarat .bcc{position:absolute;width:40px;height:40px;border-radius:50%;font-weight:900;font-size:20px;display:flex;align-items:center;justify-content:center;color:#fff;border:3px dashed #fff;box-shadow:0 3px 0 #0008,inset 0 2px 4px #fff6}
+.gart.baccarat .a{left:8px;top:12px;background:radial-gradient(circle at 50% 35%,#ff6a6a,#a8102a)}.gart.baccarat .b{left:36px;top:34px;background:radial-gradient(circle at 50% 35%,#5ca0f0,#1a4aa8)}
+.gart.blackjack,.gart.zjh{background:radial-gradient(circle at 50% 40%,#3f8a62,#1f5c3f 70%,#123a28)}
+.gart.zjh{background:radial-gradient(circle at 50% 40%,#2d5aa8,#183a78 70%,#0d2048)}
+.gart.blackjack span,.gart.zjh span{position:absolute;width:32px;height:46px;background:#fdfdfb;border-radius:5px;color:#111;font-weight:800;font-size:15px;display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1;box-shadow:0 2px 6px #0009}
+.gart span i{font-style:normal;font-size:17px}.gart span.r{color:#d0202a}
+.gart.blackjack .c1{left:10px;top:10px;transform:rotate(-12deg)}.gart.blackjack .c2{left:38px;top:12px;transform:rotate(10deg)}
+.gart .n21{position:absolute;left:0;right:0;bottom:4px;text-align:center;font-size:22px;font-weight:900;color:#ffe9a8;text-shadow:0 2px 0 #7a5a10,0 0 10px #f5d77a}
+.gart.zjh .c1{left:6px;top:22px;transform:rotate(-16deg);color:#d0202a}.gart.zjh .c2{left:27px;top:14px;z-index:1}.gart.zjh .c3{left:48px;top:22px;transform:rotate(16deg)}
+.gart.sicbo{background:radial-gradient(circle at 50% 40%,#d0404e,#6c1626 70%,#3b0b18)}
+.gart.sicbo .d3{position:absolute;width:30px;height:30px;border-radius:7px;background:radial-gradient(circle at 35% 30%,#fff,#ddd6ca);box-shadow:0 3px 0 #9a9080,0 5px 8px #0009}
+.gart.sicbo .d3:after{content:"";position:absolute;inset:0;background:radial-gradient(circle,#d0202a 0 4px,transparent 5px)}
+.gart.sicbo .x1{left:10px;top:12px;transform:rotate(-14deg)}.gart.sicbo .x2{left:44px;top:16px;transform:rotate(12deg)}.gart.sicbo .x3{left:26px;top:44px}
+.gart.sicbo .x2:after{background:radial-gradient(circle at 28% 28%,#111 0 3px,transparent 4px),radial-gradient(circle at 72% 72%,#111 0 3px,transparent 4px),radial-gradient(circle,#111 0 3px,transparent 4px)}
+.gart.sicbo .x3:after{background:radial-gradient(circle at 28% 28%,#111 0 3px,transparent 4px),radial-gradient(circle at 72% 72%,#111 0 3px,transparent 4px),radial-gradient(circle at 72% 28%,#111 0 3px,transparent 4px),radial-gradient(circle at 28% 72%,#111 0 3px,transparent 4px)}
+.gart.niuniu{background:radial-gradient(circle at 50% 40%,#e0a020,#8a4a10 70%,#4a2008)}
+.gart .nnx{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:50px;font-weight:900;font-family:"Kaiti SC","STKaiti","KaiTi",serif;background:linear-gradient(180deg,#fff7d0,#f5d77a 45%,#b8862a 55%,#ffe9a8);-webkit-background-clip:text;background-clip:text;color:transparent;filter:drop-shadow(0 3px 0 #5a2a00) drop-shadow(0 0 8px #ffcf5a)}
+.games.tg2 .gart{width:76px;height:76px}
+.marq{display:flex;align-items:center;gap:6px;border-radius:999px;padding:5px 10px;margin:0 0 8px;background:linear-gradient(90deg,#2a1050,#43197a,#2a1050);border:1px solid #d4af3799;box-shadow:inset 0 1px 0 #f5d77a33;overflow:hidden}
+.marq .mi{flex:none}.mtrack{flex:1;overflow:hidden;white-space:nowrap;mask-image:linear-gradient(90deg,transparent,#000 6%,#000 94%,transparent)}
+.mrun{display:inline-block;padding-left:100%;animation:mq 24s linear infinite;font-size:12px;color:#ead9a4}
+.mrun span{margin-right:36px}.mrun b{color:#fff}.mrun em{font-style:normal;color:#ffe9a8;font-weight:800}
+@keyframes mq{to{transform:translateX(-100%)}}
+.news .nh{font-weight:800;color:#f5d77a;margin-bottom:4px}.news.empty{display:none}
+.news .ni{font-size:12px;padding:3px 0;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#ead9a4}.news .ni b{color:#fff}
+.news i,.nfull i{font-style:normal;background:#d8303f;color:#fff;font-size:10px;border-radius:4px;padding:0 4px;margin-right:4px}
+.nfull{padding:8px 0;border-bottom:1px solid #ffffff1a}
+.hbtns{display:flex;gap:6px;margin-top:10px}.hbtns button{flex:1;padding:6px 4px;font-size:12px}
+.vipb{display:inline-block;margin-top:3px;font-size:11px;font-weight:800;border-radius:999px;padding:1px 8px;cursor:pointer;color:#2a1600;background:linear-gradient(180deg,#e8e0f0,#9a90a8);box-shadow:0 1px 0 #0008}
+.vipb.big{font-size:16px;padding:3px 12px}
+.vipb.v1{background:linear-gradient(180deg,#f0b080,#a0582a)}.vipb.v2{background:linear-gradient(180deg,#ffffff,#a8b0c0)}.vipb.v3{background:linear-gradient(180deg,#fff0b0,#d4af37)}
+.vipb.v4{background:linear-gradient(180deg,#e0fff8,#6ac0b0)}.vipb.v5{background:linear-gradient(180deg,#d0f0ff,#4a9ae0);color:#001a3a}.vipb.v6{background:linear-gradient(180deg,#ffd0ff,#c050e0);color:#2a003a}
+.vipb.v7{background:linear-gradient(180deg,#ff9a9a,#c01a2a);color:#fff}.vipb.v8{background:linear-gradient(180deg,#e0b0ff,#6a1ab0);color:#fff}.vipb.v9{background:linear-gradient(90deg,#ff6a6a,#ffe9a8,#7dffb0,#7ab0ff,#e07aff);color:#2a003a}
+.avf{position:relative;display:inline-block;flex:none;border-radius:50%}
+.avf.vf1 .avatar{border-color:#c07a40}.avf.vf2 .avatar{border-color:#e8eef8}.avf.vf3 .avatar{border-color:#ffd54a;box-shadow:0 0 0 2px #7a5a10,0 0 10px #ffd54a}
+.avf.vf4 .avatar{border-color:#8af0dc;box-shadow:0 0 0 2px #2a6a60,0 0 12px #8af0dc}.avf.vf5 .avatar{border-color:#7ac8ff;box-shadow:0 0 0 2px #1a4a8a,0 0 14px #7ac8ff}
+.avf.vf6 .avatar{border-color:#f07aff;box-shadow:0 0 0 2px #6a1a8a,0 0 16px #f07aff}.avf.vf7 .avatar{border-color:#ff5a6a;box-shadow:0 0 0 2px #7a0a1a,0 0 18px #ff5a6a}
+.avf.vf8 .avatar{border-color:#c88aff;box-shadow:0 0 0 3px #f5d77a,0 0 20px #a050ff}.avf.vf9 .avatar{border-color:#fff0b0;box-shadow:0 0 0 3px #d4af37,0 0 0 5px #a050ff,0 0 24px #ffe9a8}
+.avf[class*="vf"]:not(.vf0):not(.vf1):not(.vf2):after{content:"";position:absolute;inset:-5px;border-radius:50%;border:2px solid transparent;border-top-color:#ffe9a8;border-bottom-color:#ffe9a8aa;animation:vfr 3.5s linear infinite;pointer-events:none}
+.avf.vf7:before,.avf.vf8:before,.avf.vf9:before{content:"👑";position:absolute;top:-14px;left:50%;transform:translateX(-50%);font-size:16px;z-index:1;filter:drop-shadow(0 1px 1px #000)}
+.avf.big.vf7:before,.avf.big.vf8:before,.avf.big.vf9:before{font-size:26px;top:-22px}
+@keyframes vfr{to{transform:rotate(360deg)}}
+.avf.sm{width:22px;height:22px;border-radius:50%;background:#3b1466}.avf.sm i{position:absolute;inset:0;border-radius:50%;border:2px solid #f5d77a}
+.avf.sm:before{font-size:10px!important;top:-9px!important}.avf.sm:after{inset:-3px}
+.viphead{display:flex;gap:16px;align-items:center;margin:14px 0 6px}
+.vbar{height:8px;border-radius:999px;background:#0006;margin:6px 0;overflow:hidden}.vbar i{display:block;height:100%;background:linear-gradient(90deg,#d4af37,#ffe9a8)}
+.viplist>div{display:grid;grid-template-columns:30px 54px 1fr auto;align-items:center;gap:8px;padding:6px 4px;border-bottom:1px solid #ffffff14}
+.viplist>div.on{background:#f5d77a1f;border-radius:8px}
+.invhead{text-align:center;padding:8px 0}
+.invcode{font-size:32px;font-weight:900;letter-spacing:4px;background:linear-gradient(180deg,#fff7d0,#f5d77a 45%,#b8862a 55%,#ffe9a8);-webkit-background-clip:text;background-clip:text;color:transparent}
+.invlink{font-size:11px;color:#bfa9de;word-break:break-all}
+.invstat{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;text-align:center;margin:8px 0}.invstat>div{background:#0003;border-radius:10px;padding:6px}
+.invstat .k{font-size:11px;color:#bfa9de}.invstat .v{font-weight:800;color:#ffe9a8}
+.invrules{padding-left:18px;margin:4px 0}
+.mjsheet h3{color:#f5d77a;font-size:14px;margin:10px 0 4px}
+.sav.sv3{border-color:#ffd54a;box-shadow:0 0 6px #ffd54a}.sav.sv4{border-color:#8af0dc;box-shadow:0 0 6px #8af0dc}.sav.sv5{border-color:#7ac8ff;box-shadow:0 0 6px #7ac8ff}
+.sav.sv6{border-color:#f07aff;box-shadow:0 0 6px #f07aff}.sav.sv7{border-color:#ff5a6a;box-shadow:0 0 8px #ff5a6a}.sav.sv8{border-color:#c88aff;box-shadow:0 0 0 1px #f5d77a,0 0 8px #a050ff}.sav.sv9{border-color:#fff0b0;box-shadow:0 0 0 1px #d4af37,0 0 10px #ffe9a8}
+.sav.sv1{border-color:#c07a40}.sav.sv2{border-color:#e8eef8}
+.tgres{align-items:flex-end;padding-bottom:10px}
+.spot,.sgrid>*{min-width:0}
+.mini3 .pdie{width:11px;height:11px;padding:1px;gap:0}
+.die{--s:40px;width:var(--s);height:var(--s)}
+.die .f1{transform:translateZ(calc(var(--s)/2))}.die .f6{transform:rotateY(180deg) translateZ(calc(var(--s)/2))}.die .f3{transform:rotateY(90deg) translateZ(calc(var(--s)/2))}.die .f4{transform:rotateY(-90deg) translateZ(calc(var(--s)/2))}.die .f2{transform:rotateX(90deg) translateZ(calc(var(--s)/2))}.die .f5{transform:rotateX(-90deg) translateZ(calc(var(--s)/2))}
+html:not(.land) .tgtable{min-height:min(58dvh,560px);display:flex;flex-direction:column;justify-content:space-around}
+html:not(.land) #tg[data-g="sicbo"] .tgtable{min-height:0}
+html:not(.land) .pc.t{width:50px;height:70px;font-size:21px}html:not(.land) .pc.t .s{font-size:25px}
+html:not(.land) #tg[data-g="niuniu"] .pc.t{width:46px;height:66px}
+html:not(.land) .spot.big{min-height:88px}
+html:not(.land) .die{--s:46px}
+html.land .chip{width:36px;height:36px;font-size:11px;border-width:2px}
+html.land .chip.on{transform:translateY(-3px)}
+html.land .tgchips{gap:5px;flex-wrap:nowrap;justify-content:space-between}
+html.land #tg[data-g="sicbo"] .die{--s:28px}html.land #tg[data-g="sicbo"] .die .f{padding:3px;border-radius:5px}
+html.land #tg[data-g="sicbo"] .bowl{padding:4px 0 6px;gap:14px;width:160px}
+html.land #tg[data-g="sicbo"] .dicebox{display:flex;align-items:center;justify-content:center;gap:12px;margin-bottom:2px}
+html.land #tg[data-g="sicbo"] .spot{min-height:30px;padding:2px}
+html.land #tg[data-g="sicbo"] .spot .sn{font-size:14px}html.land #tg[data-g="sicbo"] .spot .sp{font-size:8px}
+html.land #tg[data-g="sicbo"] .spot .sb{min-height:0}
+html.land #tg[data-g="sicbo"] .spots{gap:3px;margin-top:2px}html.land #tg[data-g="sicbo"] .srow,html.land #tg[data-g="sicbo"] .sgrid{gap:3px}
+html.land #tg[data-g="sicbo"] .spot .sn .pdie{width:16px;height:16px}
+html.land #tg[data-g="sicbo"] .tgtable{transform:rotateX(4deg);padding:6px 8px}
+.spot .sn .mini3 .pdie,html.land #tg[data-g="sicbo"] .spot .sn .mini3 .pdie{width:11px;height:11px;padding:1px;gap:0}
+html.land #tg[data-g="sicbo"] .spot .sn .mini3 .pdie{width:10px;height:10px}
+#tgRes2{display:none!important}
+html.land #tgRes{display:none!important}
+html.land #tgRes2:not(.hidden){display:flex!important;position:relative;inset:auto;padding:0;margin-top:6px;justify-content:center}
+html.land #tgRes2 .in{padding:8px 18px;width:100%}html.land #tgRes2 .t{font-size:20px}html.land #tgRes2 .n{font-size:18px}
+.avf.sm.vf1 i{border-color:#c07a40}.avf.sm.vf2 i{border-color:#e8eef8}.avf.sm.vf3 i{border-color:#ffd54a;box-shadow:0 0 6px #ffd54a}.avf.sm.vf4 i{border-color:#8af0dc;box-shadow:0 0 6px #8af0dc}.avf.sm.vf5 i{border-color:#7ac8ff;box-shadow:0 0 6px #7ac8ff}.avf.sm.vf6 i{border-color:#f07aff;box-shadow:0 0 6px #f07aff}.avf.sm.vf7 i{border-color:#ff5a6a;box-shadow:0 0 8px #ff5a6a}.avf.sm.vf8 i{border-color:#c88aff;box-shadow:0 0 8px #a050ff}.avf.sm.vf9 i{border-color:#fff0b0;box-shadow:0 0 10px #ffe9a8}
+.bch .cards{flex-wrap:nowrap;gap:3px}
+html:not(.land) #tg[data-g="baccarat"] .pc.t{width:44px;height:62px;font-size:19px}
+.pc.t.third{margin:0 9px}
+.seg.blinds button{font-size:13px;padding-left:2px;padding-right:2px;white-space:nowrap}
 </style>
 </head>
 <body>
@@ -449,12 +660,14 @@ html.land .mjsheet{max-height:92dvh;max-width:640px}
  <div class="hallL">
   <div class="row" style="flex-wrap:nowrap;justify-content:space-between;margin-top:6px"><h1 class="g3d" style="flex:1;margin-top:0">👑 时烽游戏大厅</h1><span class="sndgrp" style="flex:none"></span></div>
   <div class="tagline">紫晶为席，以牌会友</div>
+  <div class="marq" id="marq"><span class="mi">📣</span><div class="mtrack"><div class="mrun" id="marqRun">欢迎来到时烽游戏大厅</div></div></div>
   <div class="card-box" id="acct">
     <div class="row" style="flex-wrap:nowrap;justify-content:space-between;gap:10px">
-      <img class="avatar" id="uAv" alt="" onclick="openProfile()">
-      <div style="flex:1;min-width:0" onclick="openProfile()"><div class="uid"><span class="pid" id="uPid"></span> · <span id="uName"></span></div><div class="bal">余额 <b id="uBal">0.00</b></div></div>
+      <div class="avf" id="uAvF"><img class="avatar" id="uAv" alt="" onclick="openProfile()"></div>
+      <div style="flex:1;min-width:0" onclick="openProfile()"><div class="uid"><span class="pid" id="uPid"></span> · <span id="uName"></span></div><div class="bal">余额 <b id="uBal">0.00</b></div><span class="vipb" id="uVip" onclick="event.stopPropagation();openVip()">VIP0 新手</span></div>
       <div style="flex:none;display:flex;flex-direction:column;gap:6px"><button class="pri sm" id="btnProfile" onclick="openProfile()">个人中心</button><button class="ghost sm" id="btnLogout">退出</button></div>
     </div>
+    <div class="hbtns"><button class="ghost sm" onclick="openVip()">👑 VIP 等级</button><button class="ghost sm" onclick="openInvite()">🎁 邀请好友</button><button class="ghost sm" onclick="openNews()">📜 公告</button></div>
     <div id="noChips" class="nochips hidden">
       <div>💬 余额不足，请联系客服获取游戏币</div>
       <!-- 客服链接（以后填 Telegram）：服务器环境变量 SUPPORT_URL，或改下面脚本里的 SUPPORT_URL_FALLBACK -->
@@ -462,6 +675,7 @@ html.land .mjsheet{max-height:92dvh;max-width:640px}
       <div class="muted hidden" id="supportSoon" style="margin-top:6px">客服联系方式即将公布，请稍后再来看看</div>
     </div>
   </div>
+  <div class="card-box news" id="newsBox"><div class="nh">📜 公告</div><div id="newsList" class="muted">暂无公告</div></div>
  </div>
  <div class="hallR">
   <div class="games">
@@ -476,6 +690,34 @@ html.land .mjsheet{max-height:92dvh;max-width:640px}
       <div class="gbtn">进入</div>
     </div>
   </div>
+  <div class="gsec">经典牌桌</div>
+  <div class="games tg2">
+    <div class="gtile tgt" data-g="baccarat">
+      <div class="gart baccarat"><span class="bcc a">庄</span><span class="bcc b">闲</span></div>
+      <div class="ginfo"><div class="gname">百家乐 <span class="newtag">新</span></div><div class="gdesc">庄闲之间，自有乾坤</div><div class="gmeta">庄 1:0.95 · 闲 1:1 · 和 1:8</div></div>
+      <div class="gbtn">进入</div>
+    </div>
+    <div class="gtile tgt" data-g="blackjack">
+      <div class="gart blackjack"><span class="c1">A<i>♠</i></span><span class="c2 r">K<i>♥</i></span><b class="n21">21</b></div>
+      <div class="ginfo"><div class="gname">21点 <span class="newtag">新</span></div><div class="gdesc">差一点是遗憾，刚刚好是传奇</div><div class="gmeta">黑杰克 3:2 · 分牌 · 加倍 · 保险</div></div>
+      <div class="gbtn">进入</div>
+    </div>
+    <div class="gtile tgt" data-g="sicbo">
+      <div class="gart sicbo"><span class="d3 x1"></span><span class="d3 x2"></span><span class="d3 x3"></span></div>
+      <div class="ginfo"><div class="gname">骰宝 <span class="newtag">新</span></div><div class="gdesc">三骰落定，大小由天</div><div class="gmeta">大小单双 · 点数 · 围骰 1:180</div></div>
+      <div class="gbtn">进入</div>
+    </div>
+    <div class="gtile tgt" data-g="niuniu">
+      <div class="gart niuniu"><b class="nnx">牛</b></div>
+      <div class="ginfo"><div class="gname">牛牛 <span class="newtag">新</span></div><div class="gdesc">牛气冲天，一把定输赢</div><div class="gmeta">牛牛 ×3 · 五小牛 ×5</div></div>
+      <div class="gbtn">进入</div>
+    </div>
+    <div class="gtile tgt" data-g="zjh">
+      <div class="gart zjh"><span class="c1">A<i>♦</i></span><span class="c2 r">A<i>♥</i></span><span class="c3">A<i>♣</i></span></div>
+      <div class="ginfo"><div class="gname">炸金花 <span class="newtag">新</span></div><div class="gdesc">三张定胜负，胆大赢天下</div><div class="gmeta">豹子 · 同花顺 · 金花</div></div>
+      <div class="gbtn">进入</div>
+    </div>
+  </div>
   <div class="muted" style="text-align:center;margin:14px 0 6px">更多游戏敬请期待</div>
  </div>
   <footer class="safe">游戏币仅供娱乐，不可兑换或交易</footer>
@@ -486,9 +728,9 @@ html.land .mjsheet{max-height:92dvh;max-width:640px}
   <div class="row" style="flex-wrap:nowrap;justify-content:space-between;margin-top:6px"><button class="ghost sm" id="btnHall3">‹ 大厅</button><h1 class="g3d" style="flex:1;text-align:center;margin:0">个人中心</h1><span class="sndgrp"></span></div>
   <div class="profgrid">
     <div class="card-box profcard">
-      <div class="avwrap"><img class="avatar big" id="pAv" alt=""><button class="avbtn" id="pAvBtn" aria-label="更换头像">📷</button></div>
+      <div class="avwrap"><div class="avf big" id="pAvF"><img class="avatar big" id="pAv" alt=""></div><button class="avbtn" id="pAvBtn" aria-label="更换头像">📷</button></div>
       <input type="file" id="pFile" accept="image/*" class="hidden">
-      <div class="pname" id="pName"></div>
+      <div class="pname" id="pName"></div><div style="text-align:center" id="pVip"></div>
       <div class="row" style="justify-content:center;flex-wrap:nowrap;gap:6px"><span class="pidbig" id="pPid"></span><button class="ghost sm" id="pCopy">复制 ID</button></div>
       <div class="bal" style="text-align:center;margin-top:6px">余额 <b id="pBal">0.00</b></div>
       <div class="muted" style="text-align:center" id="pSince"></div>
@@ -535,10 +777,10 @@ html.land .mjsheet{max-height:92dvh;max-width:640px}
   </div>
   <div class="card-box">
     <h2>创建房间</h2>
+    <label>盲注</label>
+    <div class="seg blinds" id="cBlinds"></div>
     <div class="grid4">
-      <div><label>带入筹码</label><input id="cStart" inputmode="decimal" value="1000.00"></div>
-      <div><label>小盲</label><input id="cSb" inputmode="decimal" value="10.00"></div>
-      <div><label>大盲</label><input id="cBb" inputmode="decimal" value="20.00"></div>
+      <div style="grid-column:1/4"><label>带入筹码 <span class="muted" id="cRange"></span></label><input id="cStart" inputmode="decimal" value="10.00"></div>
       <div><label>思考秒数</label><input id="cTimer" type="number" inputmode="numeric" value="30"></div>
     </div>
     <label>房间类型</label>
@@ -602,6 +844,22 @@ html.land .mjsheet{max-height:92dvh;max-width:640px}
   <div class="mjsplash hidden" id="mjSplash"></div>
 </div>
 
+<!-- 牌桌游戏：百家乐 / 21点 / 骰宝 / 牛牛 / 炸金花 -->
+<div id="tg" class="hidden">
+  <div class="tgtop"><button class="ghost sm" id="tgBack">‹ 大厅</button><h1 class="g3d" id="tgTitle">百家乐</h1><div class="tgwho" id="tgWho"></div><button class="ghost sm" id="tgRules">规则</button><button class="ghost sm" id="tgHist">记录</button><span class="sndgrp"></span></div>
+  <div class="tagline" id="tgTag"></div>
+  <div class="tgfelt"><div class="tgtable" id="tgTable"></div></div>
+  <div class="tgside">
+    <div class="tgbal">余额 <b id="tgBal">0.00</b> <button class="ghost sm" id="tgSupport">联系客服</button></div>
+    <div class="tgchips" id="tgChips"></div>
+    <div class="tgact" id="tgAct"></div>
+    <div class="tgres hidden" id="tgRes2"></div>
+  </div>
+  <footer class="safe">游戏币仅供娱乐，不可兑换或交易</footer>
+  <div class="mjmodal hidden" id="tgModal"><div class="mjsheet"><div class="row" style="justify-content:space-between;flex-wrap:nowrap"><h2 style="flex:none;margin:0" id="tgModalT"></h2><button class="ghost" style="flex:none;padding:4px 12px" id="tgModalX">关闭</button></div><div id="tgModalB"></div></div></div>
+</div>
+<div class="mjmodal hidden" id="hModal"><div class="mjsheet"><div class="row" style="justify-content:space-between;flex-wrap:nowrap"><h2 style="flex:none;margin:0" id="hModalT"></h2><button class="ghost" style="flex:none;padding:4px 12px" onclick="$('hModal').classList.add('hidden')">关闭</button></div><div id="hModalB"></div><footer class="safe">游戏币仅供娱乐，不可兑换或交易</footer></div></div>
+
 <script src="/socket.io/socket.io.js"></script>
 <script>
 const $ = (id) => document.getElementById(id);
@@ -622,19 +880,23 @@ const socket = io({ autoConnect: false, auth: (cb) => cb({ token: authToken }) }
 let me = null;
 let S = null, code = null, token = null, offset = 0, raiseTo = 0, raiseOpen = false, lastTurnKey = "";
 const params = new URLSearchParams(location.search);
+if (/^\d{4,12}$/.test(params.get("inv") || "")) { localStorage.setItem("sf_inv", params.get("inv")); }
 if (params.get("room")) $("joinCode").value = params.get("room").toUpperCase();
 
 function toast(t) { const el = $("toast"); el.textContent = t; el.classList.remove("hidden"); clearTimeout(el._t); el._t = setTimeout(() => el.classList.add("hidden"), 2500); }
 let watching = false;
 // 大厅 / 德州房间列表 / 麻将 都算“首页类”页面：刷新或重连后回到上次所在的那个
-let homeView = location.hash === "#mahjong" ? "mj" : location.hash === "#poker" ? "home" : "hall";
+let homeView = location.hash === "#mahjong" ? "mj" : location.hash === "#poker" ? "home" : /^#t-\w+$/.test(location.hash) ? "tg" : "hall";
+let tgGame = /^#t-(\w+)$/.test(location.hash) ? location.hash.slice(3) : null;
+function goHome() { if (homeView === "tg" && !$("tg").classList.contains("hidden")) return; if (homeView === "tg" && tgGame && window.tgOpen) return window.tgOpen(tgGame); show(homeView === "tg" ? "hall" : homeView); }
 function show(id) {
   if (id === "hall" || id === "home" || id === "mj") { homeView = id; const h = id === "mj" ? "#mahjong" : id === "home" ? "#poker" : ""; if (!code && location.hash !== h) history.replaceState(null, "", location.pathname + location.search + h); }
-  for (const x of ["auth", "hall", "prof", "home", "mj", "lobby", "game"]) $(x).classList.toggle("hidden", x !== id);
-  if (id === "hall") hallMeta();
+  if (id === "tg") homeView = "tg";
+  for (const x of ["auth", "hall", "prof", "home", "mj", "tg", "lobby", "game"]) $(x).classList.toggle("hidden", x !== id);
+  if (id === "hall") { hallMeta(); loadMarquee(); loadNews(); clearInterval(marqT); marqT = setInterval(loadMarquee, 30000); } else clearInterval(marqT);
   if (id === "mj" && window.mjEnter) window.mjEnter();
   if (id !== "mj" && window.mjStopAuto) window.mjStopAuto(null);
-  if (window.SFX) { SFX.area(id === "mj" ? "mj" : id === "home" || id === "lobby" || id === "game" ? "poker" : "hall"); if (id === "hall") SFX.welcome(); }
+  if (window.SFX) { SFX.area(id === "mj" ? "mj" : id === "tg" ? "tg" : id === "home" || id === "lobby" || id === "game" ? "poker" : "hall"); if (id === "hall") SFX.welcome(); }
   if (id === "home" && !watching && socket.connected) { watching = true; socket.emit("watchRooms", renderRooms); }
   else if (id !== "home" && watching) { watching = false; socket.emit("unwatchRooms"); }
 }
@@ -665,7 +927,7 @@ async function doAuth() {
   if (!username || !password) return toast("请填写用户名和密码");
   if (authMode === "register" && password !== $("aPass2").value) return toast("两次密码不一致");
   $("btnAuth").disabled = true;
-  const r = await post(authMode === "login" ? "/api/login" : "/api/register", { username, password });
+  const r = await post(authMode === "login" ? "/api/login" : "/api/register", authMode === "login" ? { username, password } : { username, password, invite: localStorage.getItem("sf_inv") || undefined });
   $("btnAuth").disabled = false;
   if (!r.ok) return toast(r.d.error || "出错了，请重试");
   authToken = r.d.token; localStorage.setItem("sf_token", authToken);
@@ -683,6 +945,8 @@ function setMe(u) {
   $("pAvDel").classList.toggle("hidden", !(u.avatarVer > 0));
   if (u.createdAt) $("pSince").textContent = "注册于 " + new Date(u.createdAt).toLocaleDateString("zh-CN", { year: "numeric", month: "long", day: "numeric" });
   if (window.mjOnMe) window.mjOnMe(u);
+  if (window.tgOnMe) window.tgOnMe(u);
+  if (u.vip) { $("uVip").className = "vipb v" + u.vip.level; $("uVip").textContent = `VIP${u.vip.level} ${u.vip.title}`; $("uAvF").className = "avf vf" + u.vip.level; $("pAvF") && ($("pAvF").className = "avf big vf" + u.vip.level); $("pVip") && ($("pVip").innerHTML = `<span class="vipb v${u.vip.level}" onclick="openVip()">VIP${u.vip.level} ${u.vip.title}</span>`); }
   // 余额为 0：提示联系客服（游戏币只能由庄家赠送）
   $("noChips").classList.toggle("hidden", u.balance > 0);
   const link = supportLink();
@@ -697,6 +961,46 @@ $("btnSupport").onclick = contactSupport;
 $("gPoker").onclick = () => show("home");
 $("gMahjong").onclick = () => show("mj");
 $("btnHall1").onclick = () => show("hall");
+document.querySelectorAll(".tgt").forEach((el) => el.onclick = () => { tgGame = el.dataset.g; window.tgOpen && window.tgOpen(el.dataset.g); });
+// 大奖跑马灯（用户名已打码）、公告、VIP、邀请好友
+let marqT = 0;
+async function loadMarquee() {
+  try { const l = await (await fetch("/api/marquee")).json();
+    const items = l.length ? l.map((x) => `<span>🎉 恭喜 <b>${esc(x.name)}</b> 在【${esc(x.game)}】赢得 <em>${M(x.win)}</em>${x.x >= 10 ? ` · ${x.x} 倍` : ""}</span>`) : ["<span>👑 欢迎来到时烽游戏大厅 · 大奖得主会在这里滚动展示</span>"];
+    $("marqRun").innerHTML = items.join("") + items.join(""); $("marqRun").style.animationDuration = Math.max(14, items.length * 7) + "s";
+  } catch (e) {}
+}
+let NEWS = [];
+async function loadNews() {
+  try { NEWS = await (await fetch("/api/announcements")).json(); } catch (e) { NEWS = []; }
+  const l = [...NEWS].sort((a, b) => (b.pinned - a.pinned) || (b.at - a.at));
+  $("newsList").innerHTML = l.length ? l.slice(0, 3).map((a) => `<div class="ni" onclick="openNews()">${a.pinned ? "<i>置顶</i>" : ""}<b>${esc(a.title)}</b> <span>${esc(a.body).slice(0, 60)}</span></div>`).join("") : `<span class="muted">暂无公告</span>`;
+  $("newsBox").classList.toggle("empty", !l.length);
+}
+function hModal(t, h) { $("hModalT").textContent = t; $("hModalB").innerHTML = h; $("hModal").classList.remove("hidden"); }
+window.openNews = () => { const l = [...NEWS].sort((a, b) => (b.pinned - a.pinned) || (b.at - a.at)); hModal("公告", l.length ? l.map((a) => `<div class="nfull">${a.pinned ? "<i>置顶</i>" : ""}<b>${esc(a.title)}</b><div class="muted">${new Date(a.at).toLocaleDateString("zh-CN")}</div><div style="white-space:pre-wrap">${esc(a.body)}</div></div>`).join("") : `<div class="muted">暂无公告</div>`); };
+let VIPS = null;
+window.openVip = async () => {
+  if (!VIPS) try { VIPS = await (await fetch("/api/vip")).json(); } catch (e) { VIPS = []; }
+  const v = (me && me.vip) || { level: 0, title: "新手", turnover: 0, progress: 0, next: null };
+  hModal("VIP 等级", `<div class="viphead"><div class="avf big vf${v.level}"><img class="avatar big" src="${$("uAv").getAttribute("src") || ""}" alt=""></div><div><div class="vipb big v${v.level}">VIP${v.level} ${esc(v.title)}</div><div class="muted">累计流水 ${M(v.turnover)}</div>
+    ${v.next ? `<div class="vbar"><i style="width:${Math.round(v.progress * 100)}%"></i></div><div class="muted">再玩 ${M(Math.max(0, v.next.need - v.turnover))} 升到 VIP${v.next.level} ${esc(v.next.title)}</div>` : `<div class="muted">已经是最高等级</div>`}</div></div>
+    <div class="muted" style="margin:8px 0">VIP 等级按累计下注流水自动提升，只改变头像框和称号，<b>不发放任何游戏币奖励</b>。</div>
+    <div class="viplist">${(VIPS || []).map((x) => `<div class="${x.level === v.level ? "on" : ""}"><span class="avf sm vf${x.level}"><i></i></span><span class="vipb v${x.level}">VIP${x.level}</span><b>${esc(x.title)}</b><span class="muted">流水 ${M(x.need)}</span></div>`).join("")}</div>`);
+};
+window.openInvite = async () => {
+  let d; try { const r = await fetch("/api/me/invite", { headers: authH() }); d = await r.json(); if (!r.ok) throw 0; } catch (e) { return toast("读取邀请信息失败"); }
+  const link = location.origin + "/?inv=" + d.code, ST = { pending: "等待首局", rewarded: "已发放", blocked: "未通过检测", capped: "已达上限" };
+  hModal("邀请好友", `<div class="invhead"><div class="muted">我的邀请码</div><div class="invcode">${esc(d.code)}</div><div class="invlink">${esc(link)}</div>
+    <div class="row" style="justify-content:center;gap:8px;margin-top:8px"><button class="pri sm" id="invCopy">复制链接</button>${navigator.share ? `<button class="blue sm" id="invShare">分享</button>` : ""}</div></div>
+    <div class="invstat"><div><div class="k">成功邀请</div><div class="v">${d.rewarded} / ${d.cap}</div></div><div><div class="k">荣誉称号</div><div class="v">${d.title ? esc(d.title) : "—"}</div></div><div><div class="k">每人奖励</div><div class="v">${M(d.amount)}</div></div></div>
+    ${d.next ? `<div class="muted" style="text-align:center">再成功邀请 ${d.next.n - d.rewarded} 位可获得「${esc(d.next.title)}」称号</div>` : ""}
+    ${d.enabled ? "" : `<div class="nochips">邀请奖励活动暂未开启</div>`}
+    <h3>规则</h3><ul class="invrules"><li>好友通过你的链接注册，并完成第一局游戏后，你和好友<b>各得固定 ${M(d.amount)}</b> 游戏币</li><li>每人最多 ${d.cap} 位好友可获得奖励</li><li>同一网络 / 设备重复注册、邀请自己不计入</li><li>奖励只有这一次固定数额，与好友之后的下注和余额无关，没有任何提成</li><li>称号：1 位 紫晶新星 · 5 位 紫晶推广大使 · 10 位 金牌推广大使 · 20 位 皇家荣誉大使</li></ul>
+    <h3>我邀请的好友（${d.total}）</h3>${d.list.length ? d.list.map((x) => `<div class="hrow"><span>${esc(x.name)}</span><span class="muted">${new Date(x.at).toLocaleDateString("zh-CN")}</span><span class="st ${x.status}">${ST[x.status] || x.status}</span></div>`).join("") : `<div class="muted">还没有邀请记录</div>`}`);
+  const cp = async () => { try { await navigator.clipboard.writeText(link); toast("已复制邀请链接"); } catch (e) { toast(link); } };
+  $("invCopy").onclick = cp; if ($("invShare")) $("invShare").onclick = () => navigator.share({ title: "时烽游戏大厅", text: "来时烽游戏大厅一起玩（游戏币仅供娱乐）", url: link }).catch(() => {});
+};
 async function hallMeta() {
   try { const l = await (await fetch("/api/rooms")).json(); $("gPokerMeta").textContent = l.length ? `公开房间 ${l.length} 个 · ${l.reduce((a, r) => a + r.seats, 0)} 人在座` : "暂无公开房间，进去创建一个"; } catch (e) {}
 }
@@ -826,10 +1130,21 @@ function renderRooms(list) {
 socket.on("rooms", renderRooms);
 $("btnRefresh").onclick = () => socket.emit("listRooms", (l) => { renderRooms(l); toast("已刷新"); });
 
+// 盲注档位（分）与对应的带入范围：20–100 个大盲，默认 100 个大盲
+const BLINDS = [[5, 10], [25, 50], [50, 100], [100, 200], [200, 500]].map(([sb, bb]) => ({ sb, bb, min: bb * 20, max: bb * 100, def: bb * 100 }));
+let blindIdx = +localStorage.getItem("sf_blind") || 0; if (!BLINDS[blindIdx]) blindIdx = 0;
+const bl = (c) => (c % 100 === 0 ? String(c / 100) : M(c));
+function renderBlinds() {
+  $("cBlinds").innerHTML = BLINDS.map((b, i) => `<button data-i="${i}" class="${i === blindIdx ? "on" : ""}">${bl(b.sb)}/${bl(b.bb)}</button>`).join("");
+  $("cBlinds").querySelectorAll("button").forEach((x) => x.onclick = () => { blindIdx = +x.dataset.i; localStorage.setItem("sf_blind", blindIdx); $("cStart").value = (BLINDS[blindIdx].def / 100).toFixed(2); renderBlinds(); });
+  const b = BLINDS[blindIdx]; $("cRange").textContent = `${M(b.min)} – ${M(b.max)}`;
+}
+renderBlinds(); $("cStart").value = (BLINDS[blindIdx].def / 100).toFixed(2);
 $("btnCreate").onclick = () => {
-  const start = toCents($("cStart").value);
+  const b = BLINDS[blindIdx]; let start = toCents($("cStart").value);
+  if (!(start >= b.min && start <= b.max)) { start = Math.min(b.max, Math.max(b.min, start || b.def)); $("cStart").value = (start / 100).toFixed(2); return toast(`这个盲注的带入范围是 ${M(b.min)} – ${M(b.max)}`); }
   if (me && start > me.balance) return noChips(start);
-  socket.emit("create", { cfg: { start, sb: toCents($("cSb").value), bb: toCents($("cBb").value), timer: $("cTimer").value, public: createPublic } }, (r) => { if (r.ok) setRoom(r.code); else toast(r.error); });
+  socket.emit("create", { cfg: { start, sb: b.sb, bb: b.bb, timer: $("cTimer").value, public: createPublic } }, (r) => { if (r.ok) setRoom(r.code); else toast(r.error); });
 };
 function join(c, auto) {
   c = (c || "").toUpperCase().trim(); if (!c) return toast("请输入房间码");
@@ -853,10 +1168,10 @@ $("btnLeave1").onclick = $("btnLeave2").onclick = leave;
 $("btnSit").onclick = () => { const me = S && S.game && S.game.players[S.you]; socket.emit("sitOut", !(me && me.sitOut)); };
 
 socket.on("connect", () => {
-  if (watching) { watching = false; if (!code) show(homeView); }
+  if (watching) { watching = false; if (!code) goHome(); }
   const c = (code || params.get("room") || "").toUpperCase();
   if (c && localStorage.getItem("sf_room") === c) join(c, true); // 刷新/断线后回到原座位
-  else if (!code) show(homeView);
+  else if (!code) goHome();
 });
 socket.on("toast", toast);
 let rafPending = false;
@@ -893,7 +1208,7 @@ function renderLobby() {
   if ($("lobby").classList.contains("hidden")) show("lobby");
   $("lCode").textContent = S.code; $("lLink").textContent = link();
   $("lCount").textContent = `玩家（${S.members.length}/9）`;
-  $("lMembers").innerHTML = S.members.map((m) => `<div class="member"><span>${m.bot ? '<span class="sav bot">🤖</span>' : m.pid ? `<img class="sav" src="/api/avatar/${m.pid}?v=${m.av || 0}" alt="">` : ""}${m.pid ? `<span class="pid">ID ${m.pid}</span> · ` : ""}${esc(m.name)}${m.host ? '<span class="tag">房主</span>' : ""}${m.bot ? '<span class="tag">电脑</span>' : ""}${!m.connected ? '<span class="tag">离线</span>' : ""}${S.members[S.you] && S.members.indexOf(m) === S.you ? '<span class="tag">我</span>' : ""}</span>${S.isHost && m.bot ? `<button class="ghost" onclick="socket.emit('removeBot',${m.i})">移除</button>` : ""}</div>`).join("");
+  $("lMembers").innerHTML = S.members.map((m) => `<div class="member"><span>${m.bot ? '<span class="sav bot">🤖</span>' : m.pid ? `<img class="sav sv${m.vip || 0}" src="/api/avatar/${m.pid}?v=${m.av || 0}" alt="">` : ""}${m.pid ? `<span class="pid">ID ${m.pid}</span> · ` : ""}${m.vip ? `<span class="vipb v${m.vip}" style="margin:0 4px 0 0">VIP${m.vip}</span>` : ""}${esc(m.name)}${m.host ? '<span class="tag">房主</span>' : ""}${m.bot ? '<span class="tag">电脑</span>' : ""}${!m.connected ? '<span class="tag">离线</span>' : ""}${S.members[S.you] && S.members.indexOf(m) === S.you ? '<span class="tag">我</span>' : ""}</span>${S.isHost && m.bot ? `<button class="ghost" onclick="socket.emit('removeBot',${m.i})">移除</button>` : ""}</div>`).join("");
   $("hostCtl").classList.toggle("hidden", !S.isHost); $("waitHost").classList.toggle("hidden", S.isHost);
   $("btnStart").disabled = S.members.length < 2; $("btnBot").disabled = S.members.length >= 9;
   const c = S.cfg; $("lCfg").textContent = `带入 ${M(c.start)} · 盲注 ${M(c.sb)}/${M(c.bb)} · 每次思考 ${c.timer} 秒（超时自动过牌或弃牌）· ${c.public ? "公开房间（大厅可见）" : "私密房间（仅凭房间码加入）"}`;
@@ -939,7 +1254,7 @@ function renderGame() {
     let st = p.left ? "已离开" : !p.connected ? "离线" : p.out ? (p.chips <= 0 ? "已淘汰" : "暂离") : p.allIn ? "全下" : p.folded ? "弃牌" : p.last;
     if (ended && p.handName) st = `<span class="hn">${esc(p.handName)}</span>`; else st = esc(st);
     const bar = g.current === i && S.deadline ? `<div class="tbar"><i data-dl="${S.deadline}"></i></div>` : "";
-    const av = p.bot ? `<span class="sav bot">🤖</span>` : p.pid ? `<img class="sav" src="/api/avatar/${p.pid}?v=${p.av || 0}" alt="">` : "";
+    const av = p.bot ? `<span class="sav bot">🤖</span>` : p.pid ? `<img class="sav sv${p.vip || 0}" src="/api/avatar/${p.pid}?v=${p.av || 0}" alt="">` : "";
     setHtml(el, `${g.dealer === i ? '<div class="dbtn">D</div>' : ""}${!ended && g.sb === i && n > 2 ? '<div class="blind">小盲</div>' : ""}${!ended && g.bb === i ? '<div class="blind">大盲</div>' : ""}
       <div class="mini">${mini}</div><div class="nm">${av}${esc(p.name)}</div>${p.pid ? `<div class="spid">ID ${p.pid}</div>` : ""}<div class="ch">${M(p.chips)}</div>
       <div class="st">${ended && p.won ? `<span class="won">+${M(p.won)}</span> ` : ""}${st}</div>${bar}`);
@@ -1066,7 +1381,7 @@ document.querySelectorAll(".gtile").forEach((el) => {
 // 启动：有登录令牌就验证并连接，否则显示登录页
 (async () => {
   if (await refreshMe()) {
-    if (!(params.get("room") && localStorage.getItem("sf_room") === params.get("room").toUpperCase())) show(homeView);
+    if (!(params.get("room") && localStorage.getItem("sf_room") === params.get("room").toUpperCase())) goHome();
     socket.connect();
   } else { authToken = ""; localStorage.removeItem("sf_token"); show("auth"); }
 })();
@@ -1074,5 +1389,6 @@ document.querySelectorAll(".gtile").forEach((el) => {
 <script src="/sound.js"></script>
 <script src="/mj-auto.js"></script>
 <script src="/mahjong.js"></script>
+<script src="/tables.js"></script>
 </body>
 </html>

@@ -1,7 +1,7 @@
 // 时烽麻将消消乐：前端只负责播放动画，每一局的结果都由服务器计算
 (() => {
-  const BETS_DEFAULT = [50, 100, 200, 500, 1000, 2000, 5000, 10000, 20000, 50000, 100000, 200000];
-  let cfg = null, betIdx = 4, busy = false, fast = localStorage.getItem("mj_fast") === "1", hurry = false, shownBal = null, grid = null;
+  const BETS_DEFAULT = [10, 50, 100, 500, 1000, 5000, 10000, 50000];
+  let cfg = null, betIdx = 2, busy = false, fast = localStorage.getItem("mj_fast") === "1", hurry = false, shownBal = null, grid = null;
   const NAMES = { fa: "發", zhong: "中", bai: "白", wan: "八萬", tong5: "五筒", tiao5: "五條", tong2: "二筒", tiao2: "二條", wild: "百搭", hu: "胡" };
   const fmt = (c) => M(c); // 金额：分 → 1,000.00
   const num = (n) => Number(n || 0).toLocaleString();
