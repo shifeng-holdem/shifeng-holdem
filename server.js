@@ -10,6 +10,8 @@ import bcrypt from "bcryptjs";
 import * as E from "./engine.js";
 import { openStore } from "./db.js";
 import * as Slot from "./slot.js";
+import { mountTables, DEFAULT_LIMITS, GAMES } from "./games/routes.js";
+import { vipOf, inviteTitle, DEFAULT_REWARDS, mask } from "./platform.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const MAX_SEATS = 9;
@@ -36,6 +38,10 @@ export async function createApp(opts = {}) {
   const stored = await store.getSettings();
   for (const k of ["signupBonus", "dailyFree"]) if (k in stored && stored[k] !== 0) await store.setSetting(k, 0);
   let settings = { ...DEFAULT_SETTINGS, rakePercent: Number(stored.rakePercent) || 0 };
+  // 每个游戏的最低/最高下注（分）、邀请奖励设置、公告：存在 settings 表里，后台可以改
+  const limits = Object.fromEntries(Object.entries(DEFAULT_LIMITS).map(([g, d]) => [g, { ...d, ...((stored.gameLimits || {})[g] || {}) }]));
+  const rewards = { invite: { ...DEFAULT_REWARDS.invite, ...((stored.rewards || {}).invite || {}) } };
+  let announcements = Array.isArray(stored.announcements) ? stored.announcements : [];
   let house = await store.getUserByName(HOUSE);
   if (!house) house = await store.createUser(HOUSE, "!", 0, { isHouse: true });
   const houseId = house.id;
@@ -47,6 +53,7 @@ export async function createApp(opts = {}) {
   } else if (!opts.quiet) console.warn("⚠️  没有设置 ADMIN_USERNAME / ADMIN_PASSWORD，管理后台暂时无人可以登录。");
 
   const app = express();
+  app.set("trust proxy", opts.trustProxy ?? 1); // Render 前面有一层代理，取真实 IP（用于邀请的简单防刷）
   const json20 = express.json({ limit: "20kb" });
   app.use((req, res, next) => (req.path === "/api/me/avatar" ? next() : json20(req, res, next)));
   app.use(express.static(path.join(__dirname, "public")));
@@ -70,7 +77,7 @@ export async function createApp(opts = {}) {
     let c; do { c = Array.from({ length: 5 }, () => A[Math.floor(Math.random() * A.length)]).join(""); } while (rooms.has(c));
     return c;
   };
-  const publicUser = (u) => ({ id: u.id, publicId: u.publicId, username: u.username, balance: u.balance, isAdmin: u.isAdmin, avatarVer: u.avatarVer || 0, createdAt: u.createdAt, supportUrl });
+  const publicUser = (u) => ({ id: u.id, publicId: u.publicId, username: u.username, balance: u.balance, isAdmin: u.isAdmin, avatarVer: u.avatarVer || 0, createdAt: u.createdAt, supportUrl, vip: vipOf(u.turnover || 0) });
 
   // ---------- 账号 ----------
   async function userFromToken(token) {
@@ -97,8 +104,18 @@ export async function createApp(opts = {}) {
       const username = String(req.body?.username || "").trim(); const password = String(req.body?.password || "");
       if (!NAME_RE.test(username) || username.startsWith("__")) return res.status(400).json({ error: "用户名需 2–16 位，只能用中文、字母、数字或下划线" });
       if (password.length < 6 || password.length > 72) return res.status(400).json({ error: "密码至少 6 位" });
+      // 邀请码 = 邀请人的玩家 ID。同一 IP 的“自己邀请自己”或同一设备反复注册不发奖励（账号照常注册）
+      const ip = req.ip || ""; let invitedBy = null, inviteStatus = null;
+      const code = Number(String(req.body?.invite || "").trim());
+      if (code) {
+        const inv = await store.getUserByPublicId(code);
+        if (inv && !inv.isHouse && !inv.banned) {
+          invitedBy = inv.id;
+          inviteStatus = ip && (inv.regIp === ip || inv.lastIp === ip || (await store.countInviteesByIp(inv.id, ip)) > 0) ? "blocked" : "pending";
+        }
+      }
       let u;
-      try { u = await store.createUser(username, await bcrypt.hash(password, bcryptRounds), SIGNUP_BONUS); }
+      try { u = await store.createUser(username, await bcrypt.hash(password, bcryptRounds), SIGNUP_BONUS, { invitedBy, inviteStatus, regIp: ip || null }); }
       catch (e) { if (e.message === "EXISTS") return res.status(409).json({ error: "这个用户名已被注册" }); throw e; }
       res.json({ token: await newSession(u), user: publicUser(u) });
     } catch (e) { next(e); }
@@ -116,6 +133,7 @@ export async function createApp(opts = {}) {
       }
       fails.delete(key);
       if (u.banned) return res.status(403).json({ error: "账号已被封禁，请联系庄家" });
+      if (req.ip) await store.updateUser(u.id, { lastIp: req.ip });
       res.json({ token: await newSession(u), user: publicUser(u) });
     } catch (e) { next(e); }
   });
@@ -179,12 +197,12 @@ export async function createApp(opts = {}) {
   const slotRng = opts.slotRng ?? Slot.cryptoRng();
   const spinning = new Set(); // 同一个玩家同时只能有一次转动在结算
   app.get("/api/mahjong/config", (_req, res) => res.json({
-    name: MJ_NAME, bets: Slot.BETS, reels: Slot.REELS, rows: Slot.ROWS, paytable: Slot.PAYTABLE, symbols: Slot.SYMBOLS,
+    name: MJ_NAME, bets: Slot.BETS.filter((b) => b >= limits.mahjong.min && b <= limits.mahjong.max), reels: Slot.REELS, rows: Slot.ROWS, paytable: Slot.PAYTABLE, symbols: Slot.SYMBOLS,
     baseMults: Slot.BASE_MULTS, freeMults: Slot.FREE_MULTS, maxWinX: Slot.MAX_WIN_X,
   }));
   app.post("/api/mahjong/spin", auth, async (req, res, next) => {
     const uid = req.user.id; const bet = Math.trunc(Number(req.body?.bet));
-    if (!Slot.BETS.includes(bet)) return res.status(400).json({ error: "请选择有效的下注额" });
+    if (!Slot.BETS.includes(bet) || bet < limits.mahjong.min || bet > limits.mahjong.max) return res.status(400).json({ error: "请选择有效的下注额" });
     if (spinning.has(uid)) return res.status(429).json({ error: "上一局还在结算，请稍等" });
     spinning.add(uid);
     try {
@@ -194,7 +212,7 @@ export async function createApp(opts = {}) {
       let saved;
       try { saved = await store.slotSpin(uid, houseId, MJ, bet, r.win, r.freeAwarded, label); }
       catch (e) { if (e.message === "INSUFFICIENT") return res.status(400).json({ error: NO_CHIPS_MSG, code: "NO_CHIPS" }); throw e; }
-      pushMe(uid);
+      pushMe(uid); track(onPlayed(uid));
       res.json({ ...r, id: saved.id, balance: saved.balance });
     } catch (e) { next(e); } finally { spinning.delete(uid); }
   });
@@ -236,7 +254,7 @@ export async function createApp(opts = {}) {
     // 个人战绩：每手牌只记一次（真人且拿到了手牌）
     if (room.statHand !== g.handNo && g.handNo > 0) {
       room.statHand = g.handNo;
-      g.players.forEach((p, i) => { const m = room.members[i]; if (m && !m.bot && m.userId && p.hole.length === 2) track(store.addPokerStats(m.userId, g.winners.includes(i), p.won || 0)); });
+      g.players.forEach((p, i) => { const m = room.members[i]; if (m && !m.bot && m.userId && p.hole.length === 2) { track(store.addPokerStats(m.userId, g.winners.includes(i), p.won || 0, p.total || 0)); track(onPlayed(m.userId)); } });
     }
     if (g.lastRake > 0 && room.rakedHand !== g.handNo) {
       room.rakedHand = g.handNo;
@@ -285,7 +303,7 @@ export async function createApp(opts = {}) {
         return {
           name: p.name, bot: p.bot, chips: p.chips, bet: p.bet, total: p.total, folded: p.folded, allIn: p.allIn,
           out: p.out, sitOut: p.sitOut, last: p.last, won: p.won, handName: show ? p.handName : "",
-          hole: show ? p.hole : [], cards: p.hole.length, pid: m ? m.pid : null, av: m ? m.av : 0, connected: !!(m && (m.bot || m.connected)), left: !!(m && m.left),
+          hole: show ? p.hole : [], cards: p.hole.length, pid: m ? m.pid : null, av: m ? m.av : 0, vip: m ? m.vip || 0 : 0, connected: !!(m && (m.bot || m.connected)), left: !!(m && m.left),
         };
       }),
       legal: you >= 0 && betting(g) && g.current === you ? E.legal(g, you) : null,
@@ -295,7 +313,7 @@ export async function createApp(opts = {}) {
     };
     return {
       code: room.code, you, isHost: room.hostToken === token, cfg: room.cfg, started: !!g,
-      members: room.members.map((m, i) => ({ i, name: m.name, pid: m.pid, av: m.av, bot: m.bot, connected: m.bot || m.connected, left: m.left, host: m.token === room.hostToken })).filter((m) => !m.left),
+      members: room.members.map((m, i) => ({ i, name: m.name, pid: m.pid, av: m.av, vip: m.vip || 0, bot: m.bot, connected: m.bot || m.connected, left: m.left, host: m.token === room.hostToken })).filter((m) => !m.left),
       game, deadline: room.deadline, nextAt: room.nextAt, now: Date.now(),
     };
   }
@@ -383,8 +401,8 @@ export async function createApp(opts = {}) {
   function updateMemberAvatar(userId, ver) {
     for (const r of rooms.values()) for (const m of r.members) if (m.userId === userId) { m.av = ver; update(r); }
   }
-  function addMember(room, { name, bot, userId, socketId, pid = null, av = 0 }) {
-    const m = { token: bot ? "bot-" + newToken() : "u" + userId, userId: bot ? null : userId, pid, av, name, bot, socketId, connected: !bot, left: false, missedHands: 0, stack: room.cfg.start };
+  function addMember(room, { name, bot, userId, socketId, pid = null, av = 0, vip = 0 }) {
+    const m = { token: bot ? "bot-" + newToken() : "u" + userId, userId: bot ? null : userId, pid, av, vip, name, bot, socketId, connected: !bot, left: false, missedHands: 0, stack: room.cfg.start };
     const g = room.g;
     if (!g) { room.members.push(m); return m; }
     // 游戏中加入：两手牌之间才复用已离开的空位，避免影响本手底池
@@ -445,7 +463,7 @@ export async function createApp(opts = {}) {
         pushMe(uid);
         const room = { code, cfg, members: [], g: null, hostToken: null, lastActive: Date.now(), created: Date.now(), emptySince: null };
         rooms.set(code, room);
-        const m = addMember(room, { name: u.username, bot: false, userId: uid, socketId: socket.id, pid: u.publicId, av: u.avatarVer });
+        const m = addMember(room, { name: u.username, bot: false, userId: uid, socketId: socket.id, pid: u.publicId, av: u.avatarVer, vip: vipOf(u.turnover).level });
         room.hostToken = m.token; attach(room, m);
         ack({ ok: true, code });
         update(room);
@@ -473,7 +491,7 @@ export async function createApp(opts = {}) {
         if (!room) return refund("房间已关闭");
         if (room.members.find((x) => x.userId === uid && !x.left)) return refund("你已经在这个房间里");
         if (activeMembers(room).length >= MAX_SEATS) return refund("房间已满（最多 9 人）");
-        m = addMember(room, { name: u.username, bot: false, userId: uid, socketId: socket.id, pid: u.publicId, av: u.avatarVer });
+        m = addMember(room, { name: u.username, bot: false, userId: uid, socketId: socket.id, pid: u.publicId, av: u.avatarVer, vip: vipOf(u.turnover).level });
         if (!m) return refund("暂时没有空位，请等这手牌结束再试");
         if (!room.hostToken) room.hostToken = m.token;
         attach(room, m);
@@ -623,6 +641,46 @@ export async function createApp(opts = {}) {
     await store.setSetting("rakePercent", settings.rakePercent);
     res.json({ ok: true, settings });
   });
+  // ---------- 平台：邀请好友 / 跑马灯 / 公告 ----------
+  // 被邀请人第一次完成任意一局游戏时，双方各得固定奖励；每位邀请人最多奖励 20 位。没有提成、没有多级。
+  async function onPlayed(uid) {
+    const r = await store.firstPlay(uid);
+    if (!r || !r.invitedBy || r.inviteStatus !== "pending" || !rewards.invite.enabled || !(rewards.invite.amount > 0)) return;
+    const st = await store.inviteReward(uid, rewards.invite.amount, rewards.invite.cap);
+    if (st === "rewarded") { pushMe(uid); pushMe(r.invitedBy); }
+  }
+  app.get("/api/me/invite", auth, async (req, res, next) => {
+    try {
+      const list = await store.inviteList(req.user.id); const ok = list.filter((x) => x.status === "rewarded").length;
+      res.json({ code: req.user.publicId, rewarded: ok, total: list.length, ...rewards.invite, ...inviteTitle(ok),
+        list: list.map((x) => ({ name: mask(x.username), status: x.status, at: x.at })) });
+    } catch (e) { next(e); }
+  });
+  let marqueeCache = { at: 0, data: [] };
+  const GAME_NAME = { ...GAMES, mahjong: MJ_NAME, poker: "时烽德州" };
+  app.get("/api/marquee", async (_req, res, next) => {
+    try {
+      if (Date.now() - marqueeCache.at > 10000) marqueeCache = { at: Date.now(), data: (await store.recentBigWins(20)).map((x) => ({ name: mask(x.username), game: GAME_NAME[x.game] || x.game, win: x.win, x: x.bet > 0 ? Math.floor(x.win / x.bet) : 0, at: x.at })) };
+      res.json(marqueeCache.data);
+    } catch (e) { next(e); }
+  });
+  app.get("/api/announcements", (_req, res) => res.json(announcements));
+  aget("/announcements", (_req, res) => res.json(announcements));
+  apost("/announcements", async (req, res) => {
+    const list = Array.isArray(req.body?.list) ? req.body.list : null; if (!list || list.length > 20) return res.status(400).json({ error: "公告格式不正确（最多 20 条）" });
+    announcements = list.map((a, i) => ({ id: String(a.id || Date.now() + "-" + i).slice(0, 40), title: String(a.title || "").trim().slice(0, 40), body: String(a.body || "").trim().slice(0, 500), pinned: !!a.pinned, at: Number(a.at) || Date.now() })).filter((a) => a.title || a.body);
+    await store.setSetting("announcements", announcements); marqueeCache.at = 0; res.json({ ok: true, list: announcements });
+  });
+  aget("/rewards", async (_req, res) => res.json({ settings: rewards, totals: await store.rewardTotals(), invites: await store.inviteStats() }));
+  apost("/rewards", async (req, res) => {
+    const iv = req.body?.invite || {};
+    if (iv.amount !== undefined) { const a = Math.trunc(Number(iv.amount)); if (!(a >= 0 && a <= 100000)) return res.status(400).json({ error: "奖励金额需在 0–1,000.00 之间" }); rewards.invite.amount = a; }
+    if (iv.cap !== undefined) { const c = Math.trunc(Number(iv.cap)); if (!(c >= 0 && c <= 100)) return res.status(400).json({ error: "上限需在 0–100 之间" }); rewards.invite.cap = c; }
+    if (iv.enabled !== undefined) rewards.invite.enabled = !!iv.enabled;
+    await store.setSetting("rewards", rewards); res.json({ ok: true, settings: rewards });
+  });
+  mountTables({ app, aget, apost, store, auth, houseId, pushMe, money: E.money, NO_CHIPS_MSG, onPlayed: (uid) => track(onPlayed(uid)), rng: opts.tableRng ?? Slot.cryptoRng(),
+    getLimits: () => limits, setLimits: async (g, v) => { limits[g] = v; await store.setSetting("gameLimits", limits); } });
   app.use("/api/admin", A);
   app.use((err, _req, res, _next) => {
     if (err && err.status === 413) return res.status(413).json({ error: "图片太大，请换一张小一点的" });

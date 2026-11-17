@@ -74,7 +74,7 @@ test("麻将消消乐接口：需要登录、下注额校验、余额不足提�
     assert.equal(r0.status, 400); assert.equal(r0.data.error, "余额不足，请联系客服获取游戏币");
     const p = await player(ctx, "转轴玩家", 100);
     assert.equal((await api(ctx, "POST", "/api/mahjong/spin", { bet: 7 }, p.token)).status, 400, "不在列表里的下注额");
-    assert.equal((await api(ctx, "POST", "/api/mahjong/spin", { bet: 200 }, p.token)).data.code, "NO_CHIPS");
+    assert.equal((await api(ctx, "POST", "/api/mahjong/spin", { bet: 500 }, p.token)).data.code, "NO_CHIPS");
     const house0 = (await ctx.store.getUser(ctx.houseId)).balance;
     let bal = 100, spins = 0, bets = 0, wins = 0;
     for (let i = 0; i < 400; i++) {

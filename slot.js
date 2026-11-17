@@ -32,7 +32,7 @@ export const FREE_MULTS = [2, 4, 6, 10];
 export const FREE_SPINS = (n) => 10 + 2 * (n - 3); // 3 个胡 = 10 次，每多一个 +2
 export const MAX_FREE = 100;
 export const MAX_WIN_X = 5000; // 单次最高赢下注的 5000 倍
-export const BETS = [50, 100, 200, 500, 1000, 2000, 5000, 10000, 20000, 50000, 100000, 200000]; // 单位：分（0.50 – 2,000.00）
+export const BETS = [10, 50, 100, 500, 1000, 5000, 10000, 50000]; // 单位：分（0.10 – 500.00）
 
 // 加权抽样表（整数化，避免浮点误差）
 const TABLES = WEIGHTS.map((w) => {
