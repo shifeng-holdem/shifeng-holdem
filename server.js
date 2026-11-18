@@ -56,11 +56,12 @@ export async function createApp(opts = {}) {
   let house = await store.getUserByName(HOUSE);
   if (!house) house = await store.createUser(HOUSE, "!", 0, { isHouse: true });
   const houseId = house.id;
+  let ownerId = null; // 主管理员（ADMIN_USERNAME）：其他管理员不能对他做任何操作
   if (opts.adminUsername && opts.adminPassword) {
     const hash = await bcrypt.hash(String(opts.adminPassword), bcryptRounds);
     const a = await store.getUserByName(opts.adminUsername);
-    if (a) await store.updateUser(a.id, { passHash: hash, isAdmin: true, banned: false });
-    else await store.createUser(String(opts.adminUsername), hash, 0, { isAdmin: true });
+    if (a) { await store.updateUser(a.id, { passHash: hash, isAdmin: true, banned: false }); ownerId = a.id; }
+    else ownerId = (await store.createUser(String(opts.adminUsername), hash, 0, { isAdmin: true })).id;
   } else if (!opts.quiet) console.warn("⚠️  没有设置 ADMIN_USERNAME / ADMIN_PASSWORD，管理后台暂时无人可以登录。");
 
   const app = express();
@@ -663,6 +664,7 @@ export async function createApp(opts = {}) {
     if (!delta || Math.abs(delta) > 1e11) return res.status(400).json({ error: "请输入有效的数量" });
     const reason = String(req.body?.reason || "").trim().slice(0, 100) || (delta > 0 ? "管理员赠送" : "管理员扣除");
     const u = await store.getUser(id); if (!u || u.isHouse) return res.status(404).json({ error: "找不到玩家" });
+    if (u.id === ownerId && req.user.id !== ownerId) return res.status(403).json({ error: "不能操作主管理员的账号" });
     try { const bal = await store.adjust(id, delta, reason, req.user.username); pushMe(id); res.json({ ok: true, balance: bal }); }
     catch (e) { if (e.message === "INSUFFICIENT") return res.status(400).json({ error: "余额不够扣" }); throw e; }
   });
@@ -670,6 +672,7 @@ export async function createApp(opts = {}) {
     const id = Number(req.params.id); const banned = !!req.body?.banned;
     const u = await store.getUser(id); if (!u || u.isHouse) return res.status(404).json({ error: "找不到玩家" });
     if (u.id === req.user.id) return res.status(400).json({ error: "不能封禁自己" });
+    if (u.id === ownerId && req.user.id !== ownerId) return res.status(403).json({ error: "不能操作主管理员的账号" });
     await store.updateUser(id, { banned });
     if (banned) {
       await store.deleteUserSessions(id); kickUser(id, "你的账号已被封禁");
@@ -685,10 +688,11 @@ export async function createApp(opts = {}) {
       members: activeMembers(r).map((m) => { const i = r.members.indexOf(m); return { name: m.name, userId: m.userId, bot: m.bot, connected: m.bot || m.connected, chips: r.g ? r.g.players[i].chips : m.stack }; }),
     })));
   });
-  apost("/rooms/:code/close", (req, res) => { const r = rooms.get(String(req.params.code).toUpperCase()); if (!r) return res.status(404).json({ error: "房间不存在" }); closeRoom(r, "庄家关闭了房间，筹码已返还到余额"); res.json({ ok: true }); });
+  apost("/rooms/:code/close", (req, res) => { const r = rooms.get(String(req.params.code).toUpperCase()); if (!r) return res.status(404).json({ error: "房间不存在" }); if (req.user.id !== ownerId && ownerId != null && activeMembers(r).some((m) => m.userId === ownerId)) return res.status(403).json({ error: "主管理员在这个房间里，不能关闭" }); closeRoom(r, "庄家关闭了房间，筹码已返还到余额"); res.json({ ok: true }); });
   apost("/rooms/:code/kick", (req, res) => {
     const r = rooms.get(String(req.params.code).toUpperCase()); if (!r) return res.status(404).json({ error: "房间不存在" });
     const m = r.members.find((x) => x.userId === Number(req.body?.userId) && !x.left); if (!m) return res.status(404).json({ error: "该玩家不在房间里" });
+    if (m.userId === ownerId && req.user.id !== ownerId) return res.status(403).json({ error: "不能操作主管理员的账号" });
     const sid = m.socketId; leave(r, m.token, "被庄家移出，返还");
     if (sid) { const s = io.sockets.sockets.get(sid); if (s) { s.emit("kicked", "你被庄家移出了房间，筹码已返还到余额"); s.leave(r.code); s.data.code = null; } }
     res.json({ ok: true });

@@ -107,3 +107,21 @@ test("抽水：翻牌后按比例从底池抽给庄家账户，总量守恒", as
     assert.equal(await economy(ctx), eco, "抽水只是从桌上转到庄家账户");
   } finally { await ctx.close(); }
 });
+
+test("主管理员受保护：其他管理员不能赠送/扣除/封禁主管理员，主管理员可以管其他管理员", async () => {
+  const ctx = await boot();
+  try {
+    const boss = await adminToken(ctx);
+    const bossUser = await ctx.store.getUserByName("boss");
+    const p = await register(ctx, "副管理");
+    await ctx.store.updateUser(p.user.id, { isAdmin: true });
+    const sub = p.token;
+    assert.equal((await api(ctx, "GET", "/api/admin/stats", null, sub)).status, 200, "副管理员能进后台");
+    assert.equal((await api(ctx, "POST", `/api/admin/users/${bossUser.id}/adjust`, { delta: 100 }, sub)).status, 403);
+    assert.equal((await api(ctx, "POST", `/api/admin/users/${bossUser.id}/adjust`, { delta: -1 }, sub)).status, 403);
+    assert.equal((await api(ctx, "POST", `/api/admin/users/${bossUser.id}/ban`, { banned: true }, sub)).status, 403);
+    assert.equal((await ctx.store.getUser(bossUser.id)).banned, false);
+    assert.equal((await api(ctx, "POST", `/api/admin/users/${p.user.id}/adjust`, { delta: 100 }, boss)).status, 200, "主管理员可以操作副管理员");
+    assert.equal((await api(ctx, "POST", `/api/admin/users/${p.user.id}/ban`, { banned: true }, boss)).status, 200);
+  } finally { await ctx.close(); }
+});
