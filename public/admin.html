@@ -249,14 +249,19 @@ function openAdjust(id) {
   extra(id).innerHTML = `<div class="box" style="margin:8px 0 0;padding:10px">
     <label>扣除数量</label><input id="ad${id}" inputmode="decimal" placeholder="例如 20.50">
     <label>原因（可不填，默认“管理员扣除”）</label><input id="ar${id}" maxlength="100" placeholder="管理员扣除">
-    <div class="row" style="margin-top:8px"><button class="red sm" onclick="adjust(${id})">确认扣除</button><button class="ghost sm" onclick="extra(${id}).innerHTML=''">取消</button></div></div>`;
+    <div class="row" id="arow${id}" style="margin-top:8px"><button class="red sm" onclick="adjust(${id})">确认扣除</button><button class="ghost sm" onclick="extra(${id}).innerHTML=''">取消</button></div></div>`;
 }
 async function adjust(id) {
   const n = Math.abs(toCents($("ad" + id).value)), reason = $("ar" + id).value.trim();
   if (!n) return toast("请输入数量");
   const u = usersCache.find((x) => x.id === id);
-  if (!confirm(`从 ${u.username} 扣除 ${fmt(n)} 筹码？`)) return;
-  try { const d = await call("POST", `/api/admin/users/${id}/adjust`, { delta: -n, reason }); toast(`完成，新余额 ${fmt(d.balance)}`); loadUsers(); } catch (e) { toast(e.message); }
+  $("ad" + id).disabled = true; $("ar" + id).disabled = true;
+  $("arow" + id).innerHTML = `<div style="width:100%;margin-bottom:6px">从 <b>${esc(u ? u.username : "")}</b> 扣除 <b>${fmt(n)}</b> 筹码？</div><button class="red sm" id="ab${id}" onclick="doAdjust(${id}, ${n})">确定扣除</button><button class="ghost sm" onclick="openAdjust(${id})">返回修改</button>`;
+}
+async function doAdjust(id, n) {
+  const btn = $("ab" + id); btn.disabled = true; const reason = $("ar" + id).value.trim();
+  try { const d = await call("POST", `/api/admin/users/${id}/adjust`, { delta: -n, reason }); toast(`完成，新余额 ${fmt(d.balance)}`); loadUsers(); }
+  catch (e) { toast(e.message); btn.disabled = false; }
 }
 async function openLedger(id) {
   const rows = await call("GET", `/api/admin/users/${id}/ledger`);
