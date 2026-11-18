@@ -1,0 +1,17 @@
+{
+  "name": "时烽后台",
+  "short_name": "时烽后台",
+  "description": "时烽国际娱乐 · 庄家后台",
+  "lang": "zh-CN",
+  "id": "/admin",
+  "start_url": "/admin",
+  "scope": "/admin",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#1a0b2e",
+  "theme_color": "#1a0b2e",
+  "icons": [
+    { "src": "/icons/admin-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/admin-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ]
+}
